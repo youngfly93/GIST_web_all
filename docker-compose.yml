@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # GIST Web 前端和后端
+  gist-web:
+    build: .
+    ports:
+      - "8000:8000"
+      - "5173:5173"
+    environment:
+      - NODE_ENV=production
+      - ARK_API_KEY=${ARK_API_KEY}
+      - ARK_API_URL=https://ark.cn-beijing.volces.com/api/v3/chat/completions
+      - ARK_MODEL_ID=deepseek-v3-250324
+    volumes:
+      - ./backend/.env.production:/app/backend/.env
+    restart: unless-stopped
+    networks:
+      - gist-network
+
+  # R Shiny 应用
+  gist-shiny:
+    image: rocker/shiny:latest
+    ports:
+      - "3838:3838"
+    volumes:
+      - ./GIST_shiny:/srv/shiny-server/gist
+      - ./shiny-server.conf:/etc/shiny-server/shiny-server.conf
+    restart: unless-stopped
+    networks:
+      - gist-network
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend/dist:/usr/share/nginx/html
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - gist-web
+      - gist-shiny
+    restart: unless-stopped
+    networks:
+      - gist-network
+
+networks:
+  gist-network:
+    driver: bridge

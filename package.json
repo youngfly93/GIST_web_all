@@ -1,0 +1,23 @@
+{
+  "name": "gist_web",
+  "version": "1.0.0",
+  "description": "一个结合人工智能技术的基因信息平台，提供基因查询和AI问答功能。",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:full": "bash start_with_windows_r.sh",
+    "dev:full:wsl": "bash start_with_shiny.sh",
+    "dev:full:windows": "start_with_shiny.bat",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "start": "npm run dev",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

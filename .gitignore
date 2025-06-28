@@ -1,0 +1,183 @@
+# ========================================
+# GIST Web Project - Clean Repository
+# ========================================
+
+# ========================================
+# SENSITIVE DATA & API KEYS
+# ========================================
+# Environment files with API keys
+.env
+.env.*
+*.env
+
+# API key patterns
+*api_key*
+*token*
+*secret*
+*password*
+
+# Specific API configurations
+backend/.env*
+OPENROUTER_API_KEY*
+ARK_API_KEY*
+
+# ========================================
+# LARGE DATA FILES
+# ========================================
+# CSV data files
+hsa_MTI.csv
+hsa_MTI.csv.crdownload
+dataset.csv
+*.csv
+
+# Compressed data files
+*.gz
+*.tar.gz
+*.rar
+*.zip
+
+# Interaction data files
+circRNA_interaction.txt*
+lncRNA_interaction.txt*
+miRNA_interaction.txt*
+interaction_*.txt*
+"1.Manual curation of experimentally validated ceRNAs.rar"
+
+# Data directories
+hscores_human_gencode27/
+backend/data/*.json
+original/
+
+# ========================================
+# SHINY PROJECTS (SEPARATE REPOSITORIES)
+# ========================================
+# All GIST Shiny applications
+GIST_shiny/
+GIST_Protemics/
+GIST_Phosphoproteomics/
+GIST_*/
+
+# ========================================
+# R FILES & OUTPUTS
+# ========================================
+# R system files
+.RData
+.Rhistory
+.Rproj.user
+*.Rproj
+
+# Generated R files
+Protemic.R
+Proteomics_add.R
+ai_chat_module.R
+shiny_ai_module.R
+
+# R analysis outputs
+current_plot_*.png
+backup_plot_*.png
+chat_plot_*.png
+*.rds
+*.RDS
+
+# R backup and test files
+*_backup_*.R
+*.backup
+*_before_*.R.backup
+test_*.R
+debug_*.R
+diagnose_*.R
+quick_*.R
+fix_*.R
+final_*.R
+*_fix.R
+*_test.R
+example_*.R
+setup_*.R
+install_*.R
+migrate_*.R
+optimize_*.R
+check_*.R
+apply_*.R
+complete_*.R
+improved_*.R
+fixed_*.R
+simple_*.R
+ultra_*.R
+siliconflow_*.R
+url_based_*.R
+restore_*.R
+update_*.R
+
+# ========================================
+# NODE.JS & FRONTEND
+# ========================================
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+app.log
+
+# ========================================
+# DEVELOPMENT & SYSTEM FILES
+# ========================================
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# System files
+.DS_Store
+._*
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Testing
+coverage/
+.nyc_output/
+
+# Claude development artifacts
+.claude/
+
+# Shell scripts (may contain sensitive paths)
+*.sh
+check_r_installation.sh
+
+# ========================================
+# DOCUMENTATION & SCREENSHOTS
+# ========================================
+# Screenshots and PDFs
+screencapture-*.pdf
+screencapture-*.png
+截图/
+
+# ========================================
+# BATCH SCRIPTS WITH SENSITIVE PATHS
+# ========================================
+# Windows batch files that may contain local paths
+start_all_windows.bat
+start_with_shiny.bat
+start_dual_simple.bat
+
+# ========================================
+# TEMPORARY ANALYSIS FILES
+# ========================================
+mcm7_*.txt
+mcm7_*.json
+gene_*.txt
