@@ -31,13 +31,32 @@ library(patchwork)
 # install_github("miccec/yaGST")  # 安装包yaGST
 # library(yaGST)  # 暂时注释，如果应用运行正常可以删除
 
+# ==== AI Feature Detection ====
+# Detect if AI functionality is enabled
+# Check if enable_ai is already set (from start scripts), otherwise use environment variable
+if (!exists("enable_ai")) {
+  enable_ai <- tolower(Sys.getenv("ENABLE_AI_ANALYSIS", "true")) == "true"
+}
+
+# Print AI functionality status
+cat("========================================\n")
+cat("   GIST Transcriptomics Platform\n")
+cat("========================================\n")
+cat("AI Analysis Enabled:", enable_ai, "\n")
+cat("Environment ENABLE_AI_ANALYSIS:", Sys.getenv("ENABLE_AI_ANALYSIS"), "\n")
+cat("Variable enable_ai exists:", exists("enable_ai"), "\n")
+cat("========================================\n")
+
+# ==== Force Loading of AI Chat Module for debugging ====
+cat("Force loading AI chat module...\n")
 # AI 聊天机器人相关包
 library(httr)
 library(jsonlite)
 library(base64enc)
 
 # 加载 AI 聊天模块
-source("ai_chat_module.R")
+source("modules/ai_chat_module.R", local = FALSE)
+cat("AI chat module loaded successfully\n")
 
 # ==== Variable Text ====
 home_whole_intro_text <- "intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text intro_text "
@@ -1616,3 +1635,5 @@ dbGIST_boxplot_Drug(ID = ID,DB = dbGIST_matrix[IM_ID])
 ID = "MCM7"
 
 dbGIST_boxplot_PrePost(ID,Mutation = "All",DB = dbGIST_matrix[Post_pre_treament_ID])
+
+

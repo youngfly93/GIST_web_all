@@ -9,7 +9,9 @@ dashboardPage(
 
   title= "GIST",
   
-  dashboardHeader(title = "GIST"),
+  dashboardHeader(
+    title = "GIST - UNIFIED TEST VERSION"
+  ),
   
   ## ==== Sidebar ====
   dashboardSidebar(
@@ -27,6 +29,27 @@ dashboardPage(
     shinyFeedback::useShinyFeedback(),
     useShinyjs(),
     includeCSS("./www/custom.css"),
+
+    # TEST MARKER - AI切换开关 - 固定位置
+    div(
+      id = "ai_toggle_container_test_123",
+      style = "position: fixed; top: 15px; right: 20px; z-index: 1050;
+               display: flex; align-items: center; background: rgba(255, 0, 0, 0.9);
+               padding: 10px 15px; border-radius: 25px; min-width: 200px;
+               border: 2px solid rgba(255,255,255,0.3); backdrop-filter: blur(10px);",
+      span("🤖 AI功能 TEST", style = "color: white; margin-right: 15px; font-size: 16px; font-weight: bold;"),
+      div(
+        style = "display: flex; align-items: center; background: rgba(255,255,255,0.1);
+                 padding: 5px 10px; border-radius: 15px;",
+        checkboxInput(
+          inputId = "ai_toggle",
+          label = NULL,
+          value = TRUE,
+          width = "auto"
+        ),
+        span("启用", style = "color: white; margin-left: 8px; font-size: 14px; font-weight: bold;")
+      )
+    ),
     
     tabItems(
       # ==== Introduction ====
@@ -545,10 +568,12 @@ dashboardPage(
       
     ),
     
-    # AI 聊天机器人
-    ai_chat_ui(),
-    
-    # JavaScript 代码
-    tags$script(HTML(ai_chat_js))
+    # AI chat components - force load for debugging
+    tagList(
+      # AI chat floating button
+      aiChatFloatingButtonUI("ai_chat"),
+      # AI chat window
+      aiChatUI("ai_chat")
+    )
   )
 )

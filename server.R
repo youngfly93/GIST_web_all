@@ -1,7 +1,23 @@
 
 
 server <- function(input, output, session) {
-  
+
+  # ==== AI功能状态管理 ====
+  ai_enabled <- reactiveVal(as.logical(Sys.getenv("ENABLE_AI_ANALYSIS", "TRUE")))
+
+  # 监听AI切换开关
+  observeEvent(input$ai_toggle, {
+    ai_enabled(input$ai_toggle)
+
+    if (ai_enabled()) {
+      showNotification("🤖 AI功能已启用", type = "success", duration = 3)
+      cat("AI功能已启用\n")
+    } else {
+      showNotification("📊 切换到基础模式", type = "warning", duration = 3)
+      cat("AI功能已禁用\n")
+    }
+  })
+
   # ==== AI模块跟踪当前活跃模块 ====
   current_active_module <- reactiveVal("module2")  # 默认值
   
@@ -500,6 +516,11 @@ server <- function(input, output, session) {
   
   # 处理发送消息
   observeEvent(input$ai_send_message, {
+    if (!ai_enabled()) {
+      showNotification("请先启用AI功能", type = "error", duration = 3)
+      return()
+    }
+
     if (input$ai_chat_message != "") {
       # 添加用户消息
       runjs(sprintf("addChatMessage('%s', true);", input$ai_chat_message))
@@ -532,6 +553,11 @@ server <- function(input, output, session) {
   
   # 处理图片上传分析 - 使用直接PNG分析
   observeEvent(input$ai_image_upload, {
+    if (!ai_enabled()) {
+      showNotification("请先启用AI功能", type = "error", duration = 3)
+      return()
+    }
+
     if (!is.null(input$ai_image_upload)) {
       file_path <- input$ai_image_upload$datapath
       file_name <- input$ai_image_upload$name
@@ -557,6 +583,11 @@ server <- function(input, output, session) {
   
   # 顶部分析按钮 - 最显眼的位置
   observeEvent(input$ai_analyze_current_plot_top, {
+    if (!ai_enabled()) {
+      showNotification("请先启用AI功能", type = "error", duration = 3)
+      return()
+    }
+
     runjs("addChatMessage('正在智能检测并分析当前模块图表...', true);")
     
     tryCatch({
@@ -657,6 +688,11 @@ server <- function(input, output, session) {
 
   # 备用分析按钮 - 为了确保功能可用
   observeEvent(input$ai_analyze_current_plot_backup, {
+    if (!ai_enabled()) {
+      showNotification("请先启用AI功能", type = "error", duration = 3)
+      return()
+    }
+
     runjs("addChatMessage('正在智能分析当前模块图表（备用按钮）...', true);")
     
     tryCatch({
@@ -696,6 +732,11 @@ server <- function(input, output, session) {
 
   # 改进的图片分析：直接保存PNG并分析
   observeEvent(input$ai_analyze_current_plot, {
+    if (!ai_enabled()) {
+      showNotification("请先启用AI功能", type = "error", duration = 3)
+      return()
+    }
+
     runjs("addChatMessage('正在分析当前图表（高质量PNG模式）...', true);")
     
     tryCatch({
@@ -735,6 +776,11 @@ server <- function(input, output, session) {
   
   # 解释统计结果
   observeEvent(input$ai_explain_stats, {
+    if (!ai_enabled()) {
+      showNotification("请先启用AI功能", type = "error", duration = 3)
+      return()
+    }
+
     runjs("addChatMessage('让我解释一下统计分析的含义...', true);")
     
     stats_explanation <- "在基因表达分析中，常见的统计指标包括：<br/>
