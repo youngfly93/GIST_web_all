@@ -9,97 +9,97 @@ interface Gene {
 }
 
 const GeneInfo: React.FC = () => {
-  const [selectedGene, setSelectedGene] = useState<string>('');
+  // const [selectedGene, setSelectedGene] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
   // 预定义的基因列表，包含GIST相关基因
   const popularGenes: Gene[] = [
-    // GIST核心相关基因
+    // GIST core genes
     {
       symbol: 'KIT',
-      name: 'KIT受体酪氨酸激酶',
-      description: 'GIST最主要的驱动基因，85%的GIST患者存在KIT突变',
-      category: 'GIST核心',
-      gistRelevance: '核心驱动基因'
+      name: 'KIT receptor tyrosine kinase',
+      description: 'Primary driver of GIST; ~85% of patients harbor KIT mutations',
+      category: 'GIST Core',
+      gistRelevance: 'Core driver'
     },
     {
       symbol: 'PDGFRA',
-      name: '血小板衍生生长因子受体α',
-      description: 'GIST的第二大驱动基因，约5-10%的GIST患者存在突变',
-      category: 'GIST核心',
-      gistRelevance: '次要驱动基因'
+      name: 'Platelet-derived growth factor receptor alpha',
+      description: 'Second major driver; ~5–10% of GIST harbor PDGFRA mutations',
+      category: 'GIST Core',
+      gistRelevance: 'Secondary driver'
     },
     {
       symbol: 'SDHA',
-      name: '琥珀酸脱氢酶亚基A',
-      description: '野生型GIST相关基因，主要见于儿童和年轻患者',
-      category: 'GIST相关',
-      gistRelevance: '野生型GIST'
+      name: 'Succinate dehydrogenase complex subunit A',
+      description: 'Associated with wild-type GIST, mainly in pediatric/young patients',
+      category: 'GIST Related',
+      gistRelevance: 'SDH-deficient (WT) GIST'
     },
     {
       symbol: 'SDHB',
-      name: '琥珀酸脱氢酶亚基B',
-      description: '与遗传性GIST综合征相关',
-      category: 'GIST相关',
-      gistRelevance: '遗传性GIST'
+      name: 'Succinate dehydrogenase complex subunit B',
+      description: 'Associated with hereditary GIST syndromes',
+      category: 'GIST Related',
+      gistRelevance: 'Hereditary GIST'
     },
     {
       symbol: 'SDHC',
-      name: '琥珀酸脱氢酶亚基C',
-      description: '与遗传性GIST和副神经节瘤相关',
-      category: 'GIST相关',
-      gistRelevance: '遗传性GIST'
+      name: 'Succinate dehydrogenase complex subunit C',
+      description: 'Associated with hereditary GIST and paraganglioma',
+      category: 'GIST Related',
+      gistRelevance: 'Hereditary GIST'
     },
     {
       symbol: 'SDHD',
-      name: '琥珀酸脱氢酶亚基D',
-      description: '与遗传性GIST相关的稀有突变',
-      category: 'GIST相关',
-      gistRelevance: '遗传性GIST'
+      name: 'Succinate dehydrogenase complex subunit D',
+      description: 'Rare mutations linked to hereditary GIST',
+      category: 'GIST Related',
+      gistRelevance: 'Hereditary GIST'
     },
     {
       symbol: 'NF1',
-      name: '神经纤维瘤病1型基因',
-      description: '神经纤维瘤病相关GIST的致病基因',
-      category: 'GIST相关',
-      gistRelevance: 'NF1相关GIST'
+      name: 'Neurofibromin 1',
+      description: 'Causative gene for NF1-associated GIST',
+      category: 'GIST Related',
+      gistRelevance: 'NF1-associated GIST'
     },
     {
       symbol: 'BRAF',
-      name: 'BRAF原癌基因',
-      description: '在部分野生型GIST中发现突变',
-      category: 'GIST相关',
-      gistRelevance: '野生型GIST'
+      name: 'BRAF proto-oncogene',
+      description: 'Mutations observed in a subset of wild-type GIST',
+      category: 'GIST Related',
+      gistRelevance: 'Wild-type GIST'
     },
-    // 通用肿瘤相关基因
+    // General tumor-related genes
     {
       symbol: 'TP53',
-      name: '肿瘤蛋白p53',
-      description: '肿瘤抑制基因，在GIST进展中起重要作用',
-      category: '肿瘤抑制',
-      gistRelevance: '肿瘤进展相关'
+      name: 'Tumor protein p53',
+      description: 'Tumor suppressor important in GIST progression',
+      category: 'Tumor Suppressors',
+      gistRelevance: 'Progression-associated'
     },
     {
       symbol: 'CDKN2A',
-      name: '细胞周期蛋白依赖性激酶抑制剂2A',
-      description: '在高级别GIST中常见缺失',
-      category: '细胞周期',
-      gistRelevance: '恶性进展标志'
+      name: 'Cyclin dependent kinase inhibitor 2A',
+      description: 'Frequently deleted in high-grade GIST',
+      category: 'Cell Cycle',
+      gistRelevance: 'Malignant progression marker'
     },
     {
       symbol: 'PIK3CA',
-      name: 'PI3K催化亚基α',
-      description: '参与GIST细胞生长和存活的信号通路',
-      category: '信号通路',
-      gistRelevance: '治疗靶点'
+      name: 'PI3K catalytic subunit alpha (PIK3CA)',
+      description: 'Key signaling pathway for GIST growth and survival',
+      category: 'Signaling Pathways',
+      gistRelevance: 'Therapeutic target'
     },
     {
       symbol: 'EGFR',
-      name: '表皮生长因子受体',
-      description: 'GIST细胞生长和分裂的调节因子',
-      category: '生长因子受体',
-      gistRelevance: '潜在治疗靶点'
+      name: 'Epidermal growth factor receptor',
+      description: 'Regulator of cell growth and division; potential target',
+      category: 'Growth Factor Receptors',
+      gistRelevance: 'Potential therapeutic target'
     }
   ];
 
@@ -115,7 +115,7 @@ const GeneInfo: React.FC = () => {
   });
 
   // 跳转到PubMed AI，使用简化的GIST检索式
-  const handleGeneSelect = (geneSymbol: string, gene: Gene) => {
+  const handleGeneSelect = (geneSymbol: string, _gene: Gene) => {
     // 简化检索式：固定GIST + 变动基因
     const searchQuery = `(GIST) AND (${geneSymbol})`;
     const pubmedUrl = `https://www.pubmed.ai/results?q=${encodeURIComponent(searchQuery)}`;
@@ -124,8 +124,8 @@ const GeneInfo: React.FC = () => {
 
   return (
     <div className="gene-info-container">
-      <h1>GIST基因研究筛选</h1>
-      <p className="page-description">筛选GIST相关基因，查看专业文献研究</p>
+      <h1>GIST Gene Screening</h1>
+      <p className="page-description">Screen GIST-related genes and view professional literature</p>
       
       <div className="filter-section">
         <div className="search-section">
@@ -133,25 +133,25 @@ const GeneInfo: React.FC = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="搜索基因名称或描述..."
+            placeholder="Search gene name or description..."
             className="gene-input"
           />
         </div>
         
         <div className="category-filter">
-          <label>分类筛选:</label>
+          <label>Category filter:</label>
           <select 
             value={filterCategory} 
             onChange={(e) => setFilterCategory(e.target.value)}
             className="category-select"
           >
-            <option value="all">全部基因</option>
-            <option value="GIST核心">GIST核心基因</option>
-            <option value="GIST相关">GIST相关基因</option>
-            <option value="肿瘤抑制">肿瘤抑制基因</option>
-            <option value="信号通路">信号通路基因</option>
-            <option value="细胞周期">细胞周期基因</option>
-            <option value="生长因子受体">生长因子受体</option>
+            <option value="all">All genes</option>
+            <option value="GIST Core">GIST core genes</option>
+            <option value="GIST Related">GIST related genes</option>
+            <option value="Tumor Suppressors">Tumor suppressor genes</option>
+            <option value="Signaling Pathways">Signaling pathway genes</option>
+            <option value="Cell Cycle">Cell cycle genes</option>
+            <option value="Growth Factor Receptors">Growth factor receptors</option>
           </select>
         </div>
       </div>
@@ -171,11 +171,11 @@ const GeneInfo: React.FC = () => {
             <p className="gene-description">{gene.description}</p>
             {gene.gistRelevance && (
               <div className="gist-relevance">
-                <span className="gist-tag">GIST相关性: {gene.gistRelevance}</span>
+                <span className="gist-tag">GIST relevance: {gene.gistRelevance}</span>
               </div>
             )}
             <div className="gene-action">
-              <span>点击查看GIST相关研究 →</span>
+              <span>Open GIST-related literature →</span>
             </div>
           </div>
         ))}
@@ -183,7 +183,7 @@ const GeneInfo: React.FC = () => {
 
       {filteredGenes.length === 0 && searchTerm && (
         <div className="no-results">
-          <p>未找到匹配的基因，请尝试其他关键词</p>
+          <p>No matching genes found. Try other keywords.</p>
         </div>
       )}
     </div>

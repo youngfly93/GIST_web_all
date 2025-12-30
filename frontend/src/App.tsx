@@ -7,6 +7,7 @@ import GeneInfo from './pages/GeneInfo';
 import AIChat from './pages/AIChat';
 import MiRNAResults from './pages/MiRNAResults';
 import NcRNAResults from './pages/NcRNAResults';
+import IconPreview from './pages/IconPreview';
 import './App.css';
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
             <Route path="/mirna-results" element={<MiRNAResults />} />
             <Route path="/circrna-results" element={<NcRNAResults />} />
             <Route path="/lncrna-results" element={<NcRNAResults />} />
+            <Route path="/icon-preview" element={<IconPreview />} />
           </Routes>
         </main>
         <footer className="footer">

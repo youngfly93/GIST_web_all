@@ -47,6 +47,11 @@ cat("Environment ENABLE_AI_ANALYSIS:", Sys.getenv("ENABLE_AI_ANALYSIS"), "\n")
 cat("Variable enable_ai exists:", exists("enable_ai"), "\n")
 cat("========================================\n")
 
+# 配置静态资源路径
+addResourcePath("precomputed", "www/precomputed")
+addResourcePath("images", "www")
+cat("✅ 静态资源路径已配置: precomputed -> www/precomputed, images -> www\n")
+
 # ==== Force Loading of AI Chat Module for debugging ====
 cat("Force loading AI chat module...\n")
 # AI 聊天机器人相关包

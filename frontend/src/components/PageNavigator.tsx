@@ -45,7 +45,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
             boxShadow: currentPage === 'main' ? 'none' : '0 4px 12px rgba(74, 144, 226, 0.3)',
             transform: currentPage === 'main' ? 'scale(0.95)' : 'scale(1)'
           }}
-          title="返回GIST AI主页"
+          title="返回dbGIST主页"
           onMouseEnter={(e) => {
             if (currentPage !== 'main') {
               e.currentTarget.style.transform = 'scale(1.05)';
@@ -58,7 +58,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
           }}
         >
           <span style={{ fontSize: '20px' }}>←</span>
-          GIST AI 主页
+          dbGIST 主页
         </button>
 
         {/* 中央 - 页面标题 */}
@@ -90,7 +90,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
               color: currentPage === 'main' ? '#4a90e2' : '#666',
               fontSize: '20px'
             }}>
-              GIST AI
+              dbGIST
             </span>
             <div style={{
               width: '60px',

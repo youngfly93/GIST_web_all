@@ -8,7 +8,7 @@ import {
   Dna,
   Zap,
   Rss,
-  ArrowRight,
+  // ArrowRight,
   Info,
   Play,
   Target
@@ -20,7 +20,7 @@ const Guide: React.FC = () => {
       <div className="guide-header">
         <BookOpen size={48} className="guide-icon" />
         <h1>User Guide</h1>
-        <p>Learn how to use the various features of the GIST AI platform</p>
+        <p>Learn how to use the various features of the dbGIST platform</p>
       </div>
 
       <div className="guide-content">
@@ -36,7 +36,7 @@ const Guide: React.FC = () => {
                 <MessageCircle size={32} />
               </div>
               <h3>1. AI Assistant</h3>
-              <p>Find the "GIST AI Assistant" module on the left side of the homepage to directly chat with AI and learn GIST-related knowledge. Supports Q&A in multiple languages, you can ask about gene functions, disease mechanisms, etc.</p>
+              <p>Find the "dbGIST Assistant" module on the left side of the homepage to directly chat with AI and learn GIST-related knowledge. Supports Q&A in multiple languages, you can ask about gene functions, disease mechanisms, etc.</p>
               <div className="guide-tip">
                 <Info size={16} />
                 <span>Tip: Try asking "What is GIST?" or "What is the function of the KIT gene?"</span>

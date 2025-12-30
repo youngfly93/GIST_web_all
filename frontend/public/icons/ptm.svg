@@ -1,0 +1,70 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Protein backbone (horizontal chain) -->
+  <g>
+    <path d="M 6 24 L 42 24" stroke="#1C484C" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+    <!-- Amino acid residues (Ser/Thr/Tyr) -->
+    <circle cx="12" cy="24" r="2.5" fill="#1C484C"/>
+    <circle cx="20" cy="24" r="2.5" fill="#1C484C"/>
+    <circle cx="28" cy="24" r="2.5" fill="#1C484C"/>
+    <circle cx="36" cy="24" r="2.5" fill="#1C484C"/>
+  </g>
+
+  <!-- Phosphorylation site 1 (left) -->
+  <g>
+    <!-- Connection line -->
+    <line x1="12" y1="24" x2="12" y2="14" stroke="#FF6B35" stroke-width="2"/>
+    <!-- Phosphate group -->
+    <circle cx="12" cy="10" r="4.5" fill="#FF6B35"/>
+    <text x="12" y="12" font-size="4.5" font-weight="bold" fill="white" text-anchor="middle">P</text>
+    <!-- Oxygen atoms -->
+    <circle cx="8" cy="8" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="16" cy="8" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="12" cy="5" r="1.2" fill="#E74C3C" opacity="0.8"/>
+  </g>
+
+  <!-- Phosphorylation site 2 (center-left) -->
+  <g>
+    <!-- Connection line -->
+    <line x1="20" y1="24" x2="20" y2="34" stroke="#FF6B35" stroke-width="2"/>
+    <!-- Phosphate group -->
+    <circle cx="20" cy="38" r="4.5" fill="#FF6B35"/>
+    <text x="20" y="40" font-size="4.5" font-weight="bold" fill="white" text-anchor="middle">P</text>
+    <!-- Oxygen atoms -->
+    <circle cx="16" cy="40" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="24" cy="40" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="20" cy="43" r="1.2" fill="#E74C3C" opacity="0.8"/>
+  </g>
+
+  <!-- Phosphorylation site 3 (center-right) -->
+  <g>
+    <!-- Connection line -->
+    <line x1="28" y1="24" x2="28" y2="14" stroke="#FF6B35" stroke-width="2"/>
+    <!-- Phosphate group -->
+    <circle cx="28" cy="10" r="4.5" fill="#FF6B35"/>
+    <text x="28" y="12" font-size="4.5" font-weight="bold" fill="white" text-anchor="middle">P</text>
+    <!-- Oxygen atoms -->
+    <circle cx="24" cy="8" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="32" cy="8" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="28" cy="5" r="1.2" fill="#E74C3C" opacity="0.8"/>
+  </g>
+
+  <!-- Phosphorylation site 4 (right) -->
+  <g>
+    <!-- Connection line -->
+    <line x1="36" y1="24" x2="36" y2="34" stroke="#FF6B35" stroke-width="2"/>
+    <!-- Phosphate group -->
+    <circle cx="36" cy="38" r="4.5" fill="#FF6B35"/>
+    <text x="36" y="40" font-size="4.5" font-weight="bold" fill="white" text-anchor="middle">P</text>
+    <!-- Oxygen atoms -->
+    <circle cx="32" cy="40" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="40" cy="40" r="1.2" fill="#E74C3C" opacity="0.8"/>
+    <circle cx="36" cy="43" r="1.2" fill="#E74C3C" opacity="0.8"/>
+  </g>
+
+  <!-- Phosphorylation label badge -->
+  <g>
+    <rect x="38" y="2" width="8" height="8" rx="1.5" fill="#FF6B35"/>
+    <text x="42" y="8" font-size="5" font-weight="bold" fill="white" text-anchor="middle">P</text>
+  </g>
+</svg>
+

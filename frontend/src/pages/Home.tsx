@@ -1,12 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bot, Dna, Microscope, BarChart3, Zap, Activity, FlaskConical, GitBranch, Rss } from 'lucide-react';
+import { Bot, Dna, Microscope, BarChart3 } from 'lucide-react';
+import PTMIcon from '../components/icons/PTMIcon';
+import TranscriptomicsIcon from '../components/icons/TranscriptomicsIcon';
+import ProteomicsIcon from '../components/icons/ProteomicsIcon';
+import SingleCellIcon from '../components/icons/SingleCellIcon';
+import NcRNAIcon from '../components/icons/NcRNAIcon';
 import MiniChat from '../components/MiniChat';
 import GeneAssistant from '../components/GeneAssistant';
 
 const Home: React.FC = () => {
   const [quickGene, setQuickGene] = useState('');
   const [aiEnabled, setAiEnabled] = useState(true);
+  const [ncRnaQueryMode, setNcRnaQueryMode] = useState(false);
+
   const navigate = useNavigate();
 
   const handleQuickSearch = () => {
@@ -68,10 +75,10 @@ const Home: React.FC = () => {
     <div className="home-container">
       <header className="hero-section">
         <div className="hero-logo">
-          <img 
-            src="/GIST_gpt.png" 
-            alt="GIST AI Logo" 
-            width="140" 
+          <img
+            src="/GIST_gpt.png"
+            alt="dbGIST Logo"
+            width="140"
             height="140"
             style={{
               borderRadius: '50%',
@@ -80,8 +87,8 @@ const Home: React.FC = () => {
             }}
           />
         </div>
-        <h1 className="hero-title">ChatGIST - Intelligent Gene Information Assistant</h1>
-        <p className="hero-subtitle">Explore genetic mysteries, AI-powered life sciences</p>
+        <h1 className="hero-title">dbGIST-LLM-powered web service for GISTs</h1>
+        <p className="hero-subtitle">Explore gene function based on multi-omics data from 33 independent centers</p>
         <div className="hero-cta">
           <button
             className="cta-button primary"
@@ -106,13 +113,13 @@ const Home: React.FC = () => {
           </button>
         </div>
       </header>
-      
+
       <section className="gist-workbench container">
         {/* Chat Assistant - Left 4 columns */}
         <article className="card chat" aria-label="GIST Intelligent Assistant">
           <div className="feature-header">
             <Bot className="feature-icon" size={40} />
-            <h3>GIST AI Assistant</h3>
+            <h3>dbGIST Assistant</h3>
             <p>Chat with AI assistant to learn GIST-related knowledge</p>
           </div>
           <MiniChat height="300px" />
@@ -184,7 +191,7 @@ const Home: React.FC = () => {
               <p>Select different omics analysis modules for professional data analysis</p>
               <div className="ai-toggle-container">
                 <label className="ai-toggle-label">
-                  <span>AI Features</span>
+                  <span>AI Switch</span>
                   <div className="toggle-switch">
                     <input
                       type="checkbox"
@@ -203,7 +210,7 @@ const Home: React.FC = () => {
             <div className="analysis-card-wrapper">
               <div className="analysis-card">
                 <div className="card-icon">
-                  <Dna size={48} color="#1C484C" />
+                  <Dna size={72} color="#1C484C" />
                 </div>
                 <span>Genomics</span>
                 <div className="card-input">
@@ -244,13 +251,13 @@ const Home: React.FC = () => {
             <div className="analysis-card-wrapper">
               <div className="analysis-card">
                 <div className="card-icon">
-                  <Zap size={48} color="#1C484C" />
+                  <TranscriptomicsIcon size={72} color="#1C484C" />
                 </div>
                 <span>Transcriptomics</span>
                 <button
                   className="card-btn primary"
                   onClick={() => {
-                    const url = aiEnabled ? 'http://127.0.0.1:4964/' : 'http://127.0.0.1:4966/';
+                    const url = aiEnabled ? 'http://117.72.75.45:4964/' : 'http://117.72.75.45:4966/';
                     window.open(url, '_blank');
                   }}
                 >
@@ -263,13 +270,13 @@ const Home: React.FC = () => {
             <div className="analysis-card-wrapper">
               <div className="analysis-card">
                 <div className="card-icon">
-                  <FlaskConical size={48} color="#1C484C" />
+                  <ProteomicsIcon size={72} color="#1C484C" />
                 </div>
                 <span>Proteomics</span>
                 <button
                   className="card-btn primary"
                   onClick={() => {
-                    const url = aiEnabled ? 'http://127.0.0.1:4968/' : 'http://127.0.0.1:4967/';
+                    const url = aiEnabled ? 'http://117.72.75.45:4968/' : 'http://117.72.75.45:4967/';
                     window.open(url, '_blank');
                   }}
                 >
@@ -278,89 +285,133 @@ const Home: React.FC = () => {
               </div>
             </div>
 
-            {/* Post-translational Modification Omics - Disabled skeleton state */}
-            <div className="analysis-card-wrapper disabled">
-              <div className="analysis-card disabled">
+            {/* Post-translational Modification Omics */}
+            <div className="analysis-card-wrapper">
+              <div className="analysis-card">
                 <div className="card-icon">
-                  <Activity size={48} color="#9CA3AF" />
+                  <PTMIcon size={72} color="#1C484C" />
                 </div>
                 <span>Post-translational Modification Omics</span>
-                <div className="skeleton-placeholder"></div>
+                <button
+                  className="card-btn primary"
+                  onClick={() => {
+                    const url = aiEnabled ? 'http://117.72.75.45:4972/' : 'http://117.72.75.45:4971/';
+                    window.open(url, '_blank');
+                  }}
+                >
+                  Enter Analysis →
+                </button>
               </div>
             </div>
 
-            {/* Single-cell Transcriptomics - Disabled skeleton state */}
-            <div className="analysis-card-wrapper disabled">
-              <div className="analysis-card disabled">
+            {/* Single-cell Transcriptomics */}
+            <div className="analysis-card-wrapper">
+              <div className="analysis-card">
                 <div className="card-icon">
-                  <GitBranch size={48} color="#9CA3AF" />
+                  <SingleCellIcon size={72} color="#1C484C" />
                 </div>
                 <span>Single-cell Transcriptomics</span>
-                <div className="skeleton-placeholder"></div>
+                <button
+                  className="card-btn primary"
+                  onClick={() => {
+                    const url = aiEnabled ? 'http://117.72.75.45:4974/' : 'http://117.72.75.45:4975/';
+                    window.open(url, '_blank');
+                  }}
+                >
+                  Enter Analysis →
+                </button>
               </div>
             </div>
 
             {/* Non-coding RNA */}
             <div className="analysis-card-wrapper">
-              <div className="analysis-card">
+              <div className="analysis-card" style={{ position: 'relative' }}>
+                {/* 右上角模式开关：关=Analysis，开=Query（默认关） */}
+                <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>Query</span>
+                  {/* 使用label包裹，确保点击滑块也能切换复选框 */}
+                  <label className="toggle-switch" style={{ transform: 'scale(0.85)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={ncRnaQueryMode}
+                      onChange={(e) => setNcRnaQueryMode(e.target.checked)}
+                      className="toggle-input"
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+
                 <div className="card-icon">
-                  <Rss size={48} color="#1C484C" />
+                  <NcRNAIcon size={72} color="#1C484C" />
                 </div>
                 <span>Non-coding RNA</span>
-                <div className="card-input">
-                  <div className="ncrna-input-group">
-                    <select className="ncrna-type-select">
-                      <option value="all">All Types</option>
-                      <option value="miRNA">miRNA</option>
-                      <option value="lncRNA">lncRNA</option>
-                      <option value="circRNA">circRNA</option>
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Enter gene name (e.g., TP53)"
-                      className="gene-input ncrna-gene-input"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          const gene = e.currentTarget.value.trim();
-                          const select = e.currentTarget.parentElement?.querySelector('.ncrna-type-select') as HTMLSelectElement;
-                          const ncRNAType = select?.value || 'all';
-                          if (gene) {
-                            handleNcRNAQuery(gene, ncRNAType);
+
+                {ncRnaQueryMode ? (
+                  <div className="card-input">
+                    <div className="ncrna-input-group">
+                      <select className="ncrna-type-select">
+                        <option value="all">All Types</option>
+                        <option value="miRNA">miRNA</option>
+                        <option value="lncRNA">lncRNA</option>
+                        <option value="circRNA">circRNA</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Enter gene name (e.g., TP53)"
+                        className="gene-input ncrna-gene-input"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            const gene = e.currentTarget.value.trim();
+                            const select = e.currentTarget.parentElement?.querySelector('.ncrna-type-select') as HTMLSelectElement;
+                            const ncRNAType = select?.value || 'all';
+                            if (gene) {
+                              handleNcRNAQuery(gene, ncRNAType);
+                            }
                           }
+                        }}
+                      />
+                    </div>
+                    <button
+                      className="card-btn"
+                      onClick={(e) => {
+                        const inputGroup = e.currentTarget.previousElementSibling as HTMLElement;
+                        const input = inputGroup.querySelector('.ncrna-gene-input') as HTMLInputElement;
+                        const select = inputGroup.querySelector('.ncrna-type-select') as HTMLSelectElement;
+                        const gene = input.value.trim();
+                        const ncRNAType = select.value;
+                        if (gene) {
+                          handleNcRNAQuery(gene, ncRNAType);
+                        } else {
+                          alert('Please enter a gene name');
                         }
                       }}
-                    />
+                    >
+                      Query
+                    </button>
                   </div>
+                ) : (
                   <button
-                    className="card-btn"
-                    onClick={(e) => {
-                      const inputGroup = e.currentTarget.previousElementSibling as HTMLElement;
-                      const input = inputGroup.querySelector('.ncrna-gene-input') as HTMLInputElement;
-                      const select = inputGroup.querySelector('.ncrna-type-select') as HTMLSelectElement;
-                      const gene = input.value.trim();
-                      const ncRNAType = select.value;
-                      if (gene) {
-                        handleNcRNAQuery(gene, ncRNAType);
-                      } else {
-                        alert('Please enter a gene name');
-                      }
+                    className="card-btn primary"
+                    onClick={() => {
+                      const url = aiEnabled ? 'http://117.72.75.45:4992/' : 'http://117.72.75.45:4991/';
+                      window.open(url, '_blank');
                     }}
                   >
-                    Query
+                    Enter Analysis →
                   </button>
-                </div>
+                )}
               </div>
             </div>
           </div>
           </div>
         </article>
       </section>
-      
+
       <section className="about-section">
-        <h2>About GIST AI</h2>
-        <p>GIST AI is a gene information platform that combines artificial intelligence technology, aiming to make genetic science knowledge more accessible and understandable.</p>
+        <h2>About dbGIST</h2>
+        <p>dbGIST: An LLM-powered Web Service for Gene Multi-Omics Functional Exploration in Gastrointestinal stromal tumors</p>
       </section>
-      
+
       <style>{`
         @keyframes slide {
           0%, 100% { transform: translateX(0); }

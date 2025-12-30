@@ -27,7 +27,7 @@ sleep 3
 
 # 检查剩余的端口占用
 echo "🔍 检查剩余的端口占用..."
-REMAINING_PORTS=$(netstat -tlnp 2>/dev/null | grep -E ":496[0-9]|:497[0-9]" | awk '{print $4 " " $7}')
+REMAINING_PORTS=$(netstat -tlnp 2>/dev/null | grep -E ":496[0-9]|:497[0-9]|:499[1-2]" | awk '{print $4 " " $7}')
 
 if [ -n "$REMAINING_PORTS" ]; then
     echo "⚠️  发现仍有端口被占用:"
@@ -36,7 +36,7 @@ if [ -n "$REMAINING_PORTS" ]; then
     echo "🔧 强制停止剩余进程..."
     
     # 获取进程ID并强制停止
-    PIDS=$(netstat -tlnp 2>/dev/null | grep -E ":496[0-9]|:497[0-9]" | awk -F'/' '{print $1}' | awk '{print $7}' | sort -u)
+    PIDS=$(netstat -tlnp 2>/dev/null | grep -E ":496[0-9]|:497[0-9]|:499[1-2]" | awk -F'/' '{print $1}' | awk '{print $7}' | sort -u)
     for pid in $PIDS; do
         if [ "$pid" != "-" ] && [ -n "$pid" ]; then
             echo "  停止进程 $pid"
@@ -49,7 +49,7 @@ fi
 
 # 最终检查
 echo "🔍 最终状态检查..."
-FINAL_CHECK=$(netstat -tlnp 2>/dev/null | grep -E ":496[0-9]|:497[0-9]")
+FINAL_CHECK=$(netstat -tlnp 2>/dev/null | grep -E ":496[0-9]|:497[0-9]|:499[1-2]")
 
 if [ -z "$FINAL_CHECK" ]; then
     echo "✅ 所有GIST Shiny应用已成功停止"

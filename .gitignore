@@ -181,3 +181,41 @@ start_dual_simple.bat
 mcm7_*.txt
 mcm7_*.json
 gene_*.txt
+
+# ========================================
+# GENERATED PLOTS & CACHE
+# ========================================
+# Backend generated plots (temporary)
+backend/public/plots/
+
+# ========================================
+# IDE & EDITOR CONFIGS
+# ========================================
+.cursor/
+
+# ========================================
+# LARGE R DATA FILES
+# ========================================
+*.Rdata
+*.RData
+*.rds
+*.RDS
+
+# R Shiny data directories
+GIST_Transcriptome/
+GIST_Protemics/
+GIST_Phosphoproteomics/
+GIST_SingleCell/
+GIST_noncoding/
+
+# ========================================
+# NGINX CONFIG FILES (server-specific)
+# ========================================
+chatgist*.conf
+dbgist*.conf
+
+# ========================================
+# BACKUP FILES
+# ========================================
+*.backup.*
+*.sh.backup.*

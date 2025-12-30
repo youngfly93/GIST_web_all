@@ -26,7 +26,7 @@ const AIChat: React.FC = () => {
     if (useStream) {
       // Streaming processing
       try {
-        const response = await fetch('http://localhost:8000/api/chat', {
+        const response = await fetch('/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ const AIChat: React.FC = () => {
         // Add an empty AI message for streaming updates
         let streamingMessageIndex = -1;
         setMessages(prev => {
-          const newMessages = [...prev, { role: 'assistant', content: '' }];
+          const newMessages = [...prev, { role: 'assistant' as const, content: '' }];
           streamingMessageIndex = newMessages.length - 1;
           return newMessages;
         });
@@ -88,7 +88,7 @@ const AIChat: React.FC = () => {
     } else {
       // 非流式处理（原有逻辑）
       try {
-        const response = await axios.post('http://localhost:8000/api/chat', {
+        const response = await axios.post('/api/chat', {
           message: currentInput,
           stream: false
         });
@@ -172,7 +172,7 @@ const AIChat: React.FC = () => {
                   fontWeight: '600',
                   color: '#1F2937'
                 }}>
-                  Hello! I'm the GIST AI Assistant.
+                  Hello! I'm the dbGIST Assistant.
                 </span>
               </div>
 

@@ -342,21 +342,31 @@ const FloatingChat: React.FC = () => {
 
         if (reader) {
           let streamingContent = '';
-          
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
+
             const chunk = decoder.decode(value);
             streamingContent += chunk;
-            
+
+            // 检测并提取图片标记 [IMAGE:/plots/xxx.png]
+            let displayContent = streamingContent;
+            let imageUrl: string | undefined;
+            const imageMatch = streamingContent.match(/\[IMAGE:(\/plots\/[^\]]+)\]/);
+            if (imageMatch) {
+              imageUrl = `http://localhost:8000${imageMatch[1]}`;
+              displayContent = streamingContent.replace(/\n*\[IMAGE:[^\]]+\]/, '');
+            }
+
             // 更新流式消息内容
             setMessages(prev => {
               const newMessages = [...prev];
               if (streamingMessageIndex >= 0) {
                 newMessages[streamingMessageIndex] = {
                   role: 'assistant',
-                  content: streamingContent
+                  content: displayContent,
+                  image: imageUrl
                 };
               }
               return newMessages;
@@ -380,10 +390,17 @@ const FloatingChat: React.FC = () => {
           message: currentInput,
           stream: false
         });
-        
-        const aiMessage: Message = { 
-          role: 'assistant', 
-          content: response.data.reply 
+
+        // 处理返回的图片路径，转换为完整 URL
+        let imageUrl = response.data.image;
+        if (imageUrl && imageUrl.startsWith('/plots/')) {
+          imageUrl = `http://localhost:8000${imageUrl}`;
+        }
+
+        const aiMessage: Message = {
+          role: 'assistant',
+          content: response.data.reply,
+          image: imageUrl || undefined
         };
         setMessages(prev => [...prev, aiMessage]);
       } catch (error: any) {
@@ -669,15 +686,18 @@ const FloatingChat: React.FC = () => {
               {/* 显示图片 */}
               {msg.image && (
                 <div style={{ marginBottom: '8px' }}>
-                  <img 
-                    src={msg.image} 
-                    alt="用户上传的图片" 
+                  <img
+                    src={msg.image}
+                    alt="分析结果图表"
                     style={{
                       maxWidth: '100%',
-                      maxHeight: '200px',
+                      maxHeight: '400px',
                       borderRadius: '8px',
-                      objectFit: 'contain'
+                      objectFit: 'contain',
+                      cursor: 'pointer'
                     }}
+                    onClick={() => window.open(msg.image, '_blank')}
+                    title="点击查看大图"
                   />
                 </div>
               )}

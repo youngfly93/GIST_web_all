@@ -94,7 +94,7 @@ export async function getDataStats() {
   return stats;
 }
 
-// 初始化CSV数据
+// 初始化CSV数据 - 使用流式处理优化内存使用
 async function initializeCSVData() {
   try {
     if (!fs.existsSync(HSA_MTI_CSV_FILE)) {
@@ -103,22 +103,31 @@ async function initializeCSVData() {
     }
 
     console.log(`正在读取CSV文件: ${HSA_MTI_CSV_FILE}`);
-    const data = fs.readFileSync(HSA_MTI_CSV_FILE, 'utf8');
-    const lines = data.split('\n').filter(line => line.trim());
 
-    if (lines.length === 0) {
-      console.warn('CSV文件为空');
-      return false;
-    }
-
-    const headers = lines[0].split(',').map(h => h.trim());
-    console.log('CSV文件头:', headers);
+    // 使用流式处理，避免一次性加载整个文件到内存
+    const readline = await import('readline');
+    const fileStream = fs.createReadStream(HSA_MTI_CSV_FILE);
+    const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity
+    });
 
     hsaMTIData = [];
+    let headers = null;
+    let lineCount = 0;
+    let processedCount = 0;
 
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
+    for await (const line of rl) {
+      lineCount++;
+
+      if (!line.trim()) continue;
+
+      if (lineCount === 1) {
+        // 处理头部
+        headers = line.split(',').map(h => h.trim());
+        console.log('CSV文件头:', headers);
+        continue;
+      }
 
       // 简单的CSV解析，假设没有引号内的逗号
       const values = line.split(',').map(v => v.trim());
@@ -136,6 +145,12 @@ async function initializeCSVData() {
           'References (PMID)': values[8] || ''
         };
         hsaMTIData.push(record);
+        processedCount++;
+      }
+
+      // 每处理10000行显示进度
+      if (processedCount % 10000 === 0) {
+        console.log(`已处理 ${processedCount} 条记录...`);
       }
     }
 
@@ -176,31 +191,55 @@ function parseCSVLine(line) {
   return result;
 }
 
-// 查询基因相关的miRNA（从CSV文件）
+// 查询基因相关的miRNA（从CSV文件）- 使用流式查询，避免全量加载
 export async function queryMiRNAFromCSV(targetGene) {
-  // 如果CSV数据未初始化，尝试初始化
-  if (!hsaMTIData) {
-    const initialized = await initializeCSVData();
-    if (!initialized) {
-      throw new Error('CSV数据未初始化');
+  try {
+    if (!fs.existsSync(HSA_MTI_CSV_FILE)) {
+      throw new Error('hsa_MTI.csv文件不存在');
     }
+
+    const readline = await import('readline');
+    const fileStream = fs.createReadStream(HSA_MTI_CSV_FILE);
+    const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity
+    });
+
+    const results = [];
+    let lineCount = 0;
+    const targetGeneUpper = targetGene.toUpperCase();
+
+    for await (const line of rl) {
+      lineCount++;
+
+      if (!line.trim() || lineCount === 1) continue; // 跳过空行和头部
+
+      const values = line.split(',').map(v => v.trim());
+
+      if (values.length >= 4) {
+        const geneValue = values[3]; // Target Gene列
+
+        if (geneValue && geneValue.toUpperCase() === targetGeneUpper) {
+          const record = {
+            id: values[1] || '', // miRNA
+            type: 'miRNA',
+            evidence: values[7] || '', // Support Type
+            experiments: values[6] || '', // Experiments
+            pmid: values[8] || '', // References (PMID)
+            link: `https://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=${values[1] || ''}`,
+            miRTarBaseID: values[0] || '' // miRTarBase ID
+          };
+          results.push(record);
+        }
+      }
+    }
+
+    console.log(`为基因 ${targetGene} 找到 ${results.length} 条miRNA记录`);
+    return results;
+  } catch (error) {
+    console.error('查询miRNA数据失败:', error);
+    throw error;
   }
-
-  const results = hsaMTIData.filter(record =>
-    record['Target Gene'] &&
-    record['Target Gene'].toUpperCase() === targetGene.toUpperCase()
-  );
-
-  // 转换为统一格式
-  return results.map(record => ({
-    id: record['miRNA'] || '',
-    type: 'miRNA',
-    evidence: record['Support Type'] || '',
-    experiments: record['Experiments'] || '',
-    pmid: record['References (PMID)'] || '',
-    link: `https://www.mirbase.org/cgi-bin/mirna_entry.pl?acc=${record['miRNA'] || ''}`,
-    miRTarBaseID: record['miRTarBase ID'] || ''
-  }));
 }
 
 // 初始化circRNA数据
@@ -368,8 +407,8 @@ export async function queryLncRNAFromFile(targetGene) {
   }));
 }
 
-// 启动时初始化数据
+// 启动时初始化数据（移除CSV初始化，改为按需加载）
 initializeData();
-initializeCSVData();
+// initializeCSVData(); // 移除启动时加载，改为查询时按需处理
 initializeCircRNAData();
 initializeLncRNAData();

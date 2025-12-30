@@ -2,10 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Send, Bot, Dna } from 'lucide-react';
 
+interface SuggestedGene {
+  symbol: string;
+  reason?: string;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  suggestedGene?: string; // Added: AI suggested gene
+  suggestedGene?: string; // Backward compatibility for single suggestion
+  suggestedGenes?: SuggestedGene[]; // Multiple suggestions
 }
 
 interface GeneAssistantProps {
@@ -36,30 +42,44 @@ const GeneAssistant: React.FC<GeneAssistantProps> = ({
     return () => clearTimeout(timer);
   }, [messages]);
 
-  // Function to extract gene names from AI responses
-  const extractGeneFromResponse = (content: string): string | null => {
-    // Match common gene name formats
-    const genePatterns = [
-      /gene[：:]\s*([A-Z][A-Z0-9]+)/i,
-      /recommend[：:]\s*([A-Z][A-Z0-9]+)/i,
-      /suggest[：:]\s*([A-Z][A-Z0-9]+)/i,
-      /\*\*([A-Z][A-Z0-9]+)\*\*/,
-      /`([A-Z][A-Z0-9]+)`/,
-      /^([A-Z][A-Z0-9]+)$/m,
-      /\b([A-Z][A-Z0-9]{2,})\b/
-    ];
+  // Extract multiple gene suggestions from model output (prefers JSON, falls back to regex)
+  const extractGenesFromText = (text: string): SuggestedGene[] => {
+    // Try fenced JSON first
+    const fenced = text.match(/```json[\s\S]*?```/i);
+    const jsonCandidate = fenced ? fenced[0].replace(/```json|```/gi, '').trim() : text;
+    const tryParse = (s: string): SuggestedGene[] | null => {
+      try {
+        const obj = JSON.parse(s);
+        const items = (obj.genes || obj.items || obj.suggestions) as any[];
+        if (Array.isArray(items)) {
+          return items
+            .map((it) => ({ symbol: String(it.symbol || it.gene || it.name || '').toUpperCase(), reason: it.reason || it.rationale || it.note }))
+            .filter((g) => /^[A-Z][A-Z0-9]{1,9}$/.test(g.symbol));
+        }
+      } catch (_) { /* ignore */ }
+      return null;
+    };
 
-    for (const pattern of genePatterns) {
-      const match = content.match(pattern);
-      if (match && match[1]) {
-        const gene = match[1].toUpperCase();
-        // 验证是否是合理的基因名称（2-10个字符，字母数字组合）
-        if (gene.length >= 2 && gene.length <= 10 && /^[A-Z][A-Z0-9]*$/.test(gene)) {
-          return gene;
+    let parsed = tryParse(jsonCandidate);
+    if (parsed && parsed.length > 0) return parsed;
+
+    // Fallback: parse markdown list like "1. KIT - reason"
+    const lines = text.split(/\n+/);
+    const results: SuggestedGene[] = [];
+    for (const line of lines) {
+      const m = line.match(/^[\-*\d\.\s]*([A-Z][A-Z0-9]{1,9})\b[\s:\-–]*([^\n]*)/);
+      if (m) {
+        const symbol = m[1].toUpperCase();
+        const reason = (m[2] || '').trim();
+        if (/^[A-Z][A-Z0-9]{1,9}$/.test(symbol)) {
+          results.push({ symbol, reason });
         }
       }
     }
-    return null;
+    // De-duplicate while preserving order
+    const seen = new Set<string>();
+    const dedup = results.filter((g) => (seen.has(g.symbol) ? false : (seen.add(g.symbol), true)));
+    return dedup.slice(0, 10);
   };
 
   const handleSend = async () => {
@@ -73,18 +93,23 @@ const GeneAssistant: React.FC<GeneAssistantProps> = ({
     setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
 
     try {
-      // 构建专门的基因筛选提示词
-      const genePrompt = `你是GIST基因筛选专家助手。用户询问：${currentInput}
+      // Prompt: return a ranked list of relevant genes in JSON only
+      const genePrompt = `You are a GIST gene screening assistant. The user says: "${currentInput}".
 
-请根据用户的描述，推荐一个最相关的GIST相关基因。
+Please recommend up to 10 GIST-related genes most relevant to the user's intent.
 
-要求：
-1. 只推荐一个基因名称
-2. 基因名称必须是标准的基因符号（如KIT、TP53、PDGFRA等）
-3. 简要说明推荐理由（1-2句话）
-4. 回复格式：推荐基因：**基因名称**，理由：...
+Output strictly in JSON only (no extra text). Use this schema:
+{
+  "genes": [
+    { "symbol": "KIT", "reason": "brief rationale in 5-20 words" }
+  ]
+}
 
-常见GIST相关基因包括：KIT、PDGFRA、TP53、CDKN2A、RB1、NF1、BRAF、PIK3CA、APC、CTNNB1等。`;
+Rules:
+- Symbols must be valid gene symbols in uppercase (e.g., KIT, PDGFRA, TP53, CDKN2A, RB1, NF1, BRAF, PIK3CA, APC, CTNNB1)
+- Sort by relevance (most relevant first)
+- Keep reasons concise
+- Do not include any text outside the JSON object.`;
 
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -93,7 +118,7 @@ const GeneAssistant: React.FC<GeneAssistantProps> = ({
         },
         body: JSON.stringify({
           message: genePrompt,
-          stream: true
+          stream: false
         }),
       });
 
@@ -101,42 +126,25 @@ const GeneAssistant: React.FC<GeneAssistantProps> = ({
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      
-      // Add an empty AI message for streaming updates
-      let streamingMessageIndex = -1;
-      setMessages(prev => {
-        const newMessages = [...prev, { role: 'assistant' as const, content: '' }];
-        streamingMessageIndex = newMessages.length - 1;
-        return newMessages;
-      });
+      const data = await response.json();
+      const reply: string = data.reply || '';
 
-      if (reader) {
-        let streamingContent = '';
+      // Try to parse structured genes
+      const genes = extractGenesFromText(reply);
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      // Build a friendly markdown list for display
+      const display = genes.length > 0
+        ? genes.map((g, i) => `${i + 1}. **${g.symbol}** - ${g.reason || ''}`.trim()).join('\n')
+        : reply;
 
-          const chunk = decoder.decode(value);
-          streamingContent += chunk;
-
-          // Update streaming message content
-          setMessages(prev => {
-            const newMessages = [...prev];
-            if (streamingMessageIndex >= 0 && streamingMessageIndex < newMessages.length) {
-              const suggestedGene = extractGeneFromResponse(streamingContent);
-              newMessages[streamingMessageIndex] = {
-                role: 'assistant',
-                content: streamingContent,
-                suggestedGene: suggestedGene || undefined
-              };
-            }
-            return newMessages;
-          });
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: display,
+          suggestedGenes: genes
         }
-      }
+      ]);
     } catch (error: any) {
       console.error('Gene Assistant error:', error);
       setMessages(prev => [...prev, {
@@ -178,7 +186,20 @@ const GeneAssistant: React.FC<GeneAssistantProps> = ({
                 {message.role === 'assistant' ? (
                   <>
                     <ReactMarkdown>{message.content}</ReactMarkdown>
-                    {message.suggestedGene && (
+                    {message.suggestedGenes && message.suggestedGenes.length > 0 && (
+                      <div className="gene-suggestions">
+                        {message.suggestedGenes.map((g, idx) => (
+                          <button
+                            key={`${g.symbol}-${idx}`}
+                            className="use-gene-button"
+                            onClick={() => handleUseGene(g.symbol)}
+                          >
+                            Use {g.symbol}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {message.suggestedGene && !message.suggestedGenes && (
                       <button
                         className="use-gene-button"
                         onClick={() => handleUseGene(message.suggestedGene!)}

@@ -152,7 +152,7 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
       <div className="dataset-container">
         <div className="loading-spinner">
           <Database size={48} />
-          <p>加载数据集...</p>
+          <p>Loading datasets...</p>
         </div>
       </div>
     );
@@ -165,13 +165,13 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
         <div className="header-top">
           <Link to="/" className="back-link">
             <ArrowLeft size={20} />
-            返回首页
+            Back to Home
           </Link>
           <div className="header-info">
             <Database size={32} />
             <div>
-              <h1>GIST 数据集</h1>
-              <p>找到 {filteredData.length} 条数据记录</p>
+              <h1>GIST Datasets</h1>
+              <p>Found {filteredData.length} records</p>
             </div>
           </div>
         </div>
@@ -182,7 +182,7 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
             <Search size={20} />
             <input
               type="text"
-              placeholder="搜索数据集..."
+              placeholder="Search datasets..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -194,7 +194,7 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
               value={selectedOmicsType}
               onChange={(e) => setSelectedOmicsType(e.target.value)}
             >
-              <option value="all">所有类型</option>
+              <option value="all">All types</option>
               {omicsTypes.map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
@@ -208,13 +208,13 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
         <table className="dataset-table">
           <thead>
             <tr>
-              <th>登录号</th>
-              <th>组学类型</th>
-              <th>样本数</th>
-              <th>数据链接</th>
-              <th>平台</th>
+              <th>Accession No.</th>
+              <th>Omics Types</th>
+              <th>Sample No.</th>
+              <th>Data Links</th>
+              <th>Platforms</th>
               <th>BioProject</th>
-              <th>文献链接</th>
+              <th>Paper Links</th>
             </tr>
           </thead>
           <tbody>
@@ -232,7 +232,7 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
                   {record['Sample No.'] || '-'}
                 </td>
                 <td className="link-cell">
-                  {renderLink(record['Data links'], '查看数据')}
+                  {renderLink(record['Data links'], 'View Data')}
                 </td>
                 <td className="platform-cell">
                   <div className="platform-text" title={record['Platforms']}>
@@ -243,7 +243,7 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
                   {record['BioProject'] || '-'}
                 </td>
                 <td className="paper-cell">
-                  {renderLink(record['Paper links'], '查看文献')}
+                  {renderLink(record['Paper links'], 'View Paper')}
                 </td>
               </tr>
             ))}
@@ -255,8 +255,8 @@ This study,Single cell sequencing,6,NA,Illumina HiSeq X,NA,NA`;
       {filteredData.length === 0 && (
         <div className="empty-state">
           <Database size={64} color="#9CA3AF" />
-          <h3>未找到匹配的数据</h3>
-          <p>请尝试调整搜索条件或筛选器</p>
+          <h3>No matching data found</h3>
+          <p>Please try adjusting the search or filters</p>
         </div>
       )}
     </div>

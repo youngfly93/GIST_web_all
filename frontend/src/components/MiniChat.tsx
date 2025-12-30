@@ -5,6 +5,7 @@ import { Send } from 'lucide-react';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  image?: string;  // 分析结果图片路径
 }
 
 interface MiniChatProps {
@@ -79,21 +80,31 @@ const MiniChat: React.FC<MiniChatProps> = ({
 
       if (reader) {
         let streamingContent = '';
-        
+        let imagePath: string | undefined = undefined;
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           const chunk = decoder.decode(value);
           streamingContent += chunk;
-          
+
+          // 检查是否包含图片标记 [IMAGE:/plots/xxx.png]
+          const imageMatch = streamingContent.match(/\[IMAGE:(\/plots\/[^\]]+)\]/);
+          if (imageMatch) {
+            imagePath = imageMatch[1];
+            // 从内容中移除图片标记
+            streamingContent = streamingContent.replace(/\n*\[IMAGE:[^\]]+\]/, '');
+          }
+
           // Update streaming message content
           setMessages(prev => {
             const newMessages = [...prev];
             if (streamingMessageIndex >= 0 && streamingMessageIndex < newMessages.length) {
               newMessages[streamingMessageIndex] = {
                 role: 'assistant',
-                content: streamingContent
+                content: streamingContent.trim(),
+                image: imagePath
               };
             }
             return newMessages;
@@ -126,7 +137,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
       <div className="mini-chat-messages" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="mini-chat-welcome">
-            <p>👋 Hello! I'm the GIST AI Assistant</p>
+            <p>👋 Hello! I'm the dbGIST Assistant</p>
             <p>Feel free to ask me any questions</p>
           </div>
         ) : (
@@ -137,6 +148,17 @@ const MiniChat: React.FC<MiniChatProps> = ({
                   <ReactMarkdown>{message.content}</ReactMarkdown>
                 ) : (
                   message.content
+                )}
+                {/* 显示分析结果图片 */}
+                {message.image && (
+                  <div className="mini-message-image">
+                    <img
+                      src={message.image}
+                      alt="分析结果"
+                      onClick={() => window.open(message.image, '_blank')}
+                      title="点击查看大图"
+                    />
+                  </div>
                 )}
               </div>
             </div>

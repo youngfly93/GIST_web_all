@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Dna, Home, Database, BookOpen } from 'lucide-react';
+import { Home, Database, BookOpen } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
@@ -19,7 +19,7 @@ const Navbar: React.FC = () => {
               borderRadius: '50%'
             }} 
           />
-          <span className="logo-text">ChatGIST</span>
+          <span className="logo-text">dbGIST</span>
         </Link>
         
         <div className="nav-links">

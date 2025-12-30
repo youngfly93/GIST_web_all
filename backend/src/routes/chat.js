@@ -3,145 +3,126 @@ import axios from 'axios';
 
 const router = express.Router();
 
+// Python GLM Agent 服务地址
+const AGENT_URL = process.env.AGENT_URL || 'http://localhost:5001';
+
 router.post('/', async (req, res) => {
   try {
-    const { message, image, stream = false } = req.body;
-    
-    // 检查API配置
-    if (!process.env.ARK_API_KEY || !process.env.ARK_API_URL) {
-      return res.status(500).json({ 
-        error: '火山方舟API未配置' 
-      });
+    const { message, stream = false } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: '消息不能为空' });
     }
-    
-    // 调用火山方舟API
-    console.log('Calling ARK API with URL:', process.env.ARK_API_URL);
-    console.log('Using model:', process.env.ARK_MODEL_ID || "deepseek-v3-250324");
-    console.log('Stream mode:', stream);
-    console.log('Has image:', !!image);
-    
-    // 构建用户消息内容
-    let userContent;
+
+    console.log(`[Chat] 收到请求: ${message.substring(0, 100)}...`);
+    console.log(`[Chat] Agent URL: ${AGENT_URL}`);
+
+    // 转发到 Python GLM Agent
+    const agentResponse = await axios.post(
+      `${AGENT_URL}/chat`,
+      { message },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 600000 // 10分钟超时 (富集/GSEA 等分析可能较慢)
+      }
+    );
+
+    const { reply, image } = agentResponse.data;
+
+    console.log(`[Chat] Agent 回复: ${reply?.substring(0, 100)}...`);
     if (image) {
-      // 如果有图片，使用多模态格式
-      userContent = [
-        {
-          type: "text",
-          text: message
-        },
-        {
-          type: "image_url",
-          image_url: {
-            url: image // base64格式的图片
-          }
-        }
-      ];
-    } else {
-      // 只有文本
-      userContent = message;
+      console.log(`[Chat] 包含图片: ${image}`);
     }
-    
-    const requestData = {
-      model: process.env.ARK_MODEL_ID || "deepseek-v3-250324",
-      messages: [
-        {
-          role: "system",
-          content: "你是一个专注于胃肠道间质瘤（GIST）的辅助智能助手。你的主要功能是协助用户了解和学习GIST相关知识，包括：\n\n1. GIST的基本概念和分子机制\n2. 常见的基因突变（如KIT、PDGFRA等）\n3. GIST的诊断方法和病理特征\n4. 治疗选择和药物信息\n5. 相关研究进展和文献信息\n\n当用户上传图片时，请详细分析图表内容，包括：数据特征、趋势分析、与GIST研究的关联性、可能的临床意义等。请用通俗易懂的语言回答用户问题，重点提供科普性和教育性内容。如果遇到具体的医疗决策问题，请提醒用户咨询专业医生。当问题与GIST相关度较低时，可以尝试从GIST角度提供相关信息。"
-        },
-        {
-          role: "user",
-          content: userContent
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 1500, // 增加token限制以支持图片分析
-      stream: stream
-    };
 
     if (stream) {
-      // 流式响应
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      // 流式响应模式 - 逐字符发送
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      
-      const arkResponse = await axios.post(
-        process.env.ARK_API_URL,
-        requestData,
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.ARK_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          responseType: 'stream',
-          timeout: 60000 // 60秒超时
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      // 模拟流式输出
+      const fullReply = reply || '';
+      const chunkSize = 10; // 每次发送10个字符
+
+      for (let i = 0; i < fullReply.length; i += chunkSize) {
+        const chunk = fullReply.substring(i, i + chunkSize);
+        res.write(chunk);
+        if (typeof res.flush === 'function') {
+          res.flush();
         }
-      );
-      
-      arkResponse.data.on('data', (chunk) => {
-        const lines = chunk.toString().split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
-                res.write(data.choices[0].delta.content);
-              }
-            } catch (e) {
-              console.error('Parse stream chunk error:', e);
-            }
-          }
-        }
-      });
-      
-      arkResponse.data.on('end', () => {
-        res.end();
-      });
-      
-      arkResponse.data.on('error', (error) => {
-        console.error('Stream error:', error);
-        res.end();
-      });
-      
+        // 短暂延迟模拟打字效果
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+
+      // 如果有图片，在末尾添加图片标记
+      if (image) {
+        res.write(`\n\n[IMAGE:${image}]`);
+      }
+
+      res.end();
+
     } else {
       // 非流式响应
-      const arkResponse = await axios.post(
-        process.env.ARK_API_URL,
-        requestData,
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.ARK_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 30000 // 30秒超时
-        }
-      );
-      
-      // 提取AI回复
-      const reply = arkResponse.data.choices[0].message.content;
-      res.json({ reply });
-    }
-    
-  } catch (error) {
-    console.error('Chat API error details:');
-    console.error('Status:', error.response?.status);
-    console.error('Status Text:', error.response?.statusText);
-    console.error('Response Data:', error.response?.data);
-    console.error('Error Message:', error.message);
-    
-    if (error.response?.status === 401) {
-      res.status(500).json({ 
-        error: 'API认证失败，请检查API Key是否正确。' 
+      res.json({
+        reply: reply || '',
+        image: image || null
       });
-    } else if (error.response?.status === 429) {
-      res.status(500).json({ 
-        error: 'API调用频率过高，请稍后再试。' 
+    }
+
+  } catch (error) {
+    console.error('[Chat] 错误详情:');
+    console.error('Error:', error.message);
+
+    if (error.code === 'ECONNREFUSED') {
+      res.status(503).json({
+        error: 'AI Agent 服务未启动，请先启动 Python Agent 服务',
+        details: `无法连接到 ${AGENT_URL}`
+      });
+    } else if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      res.status(504).json({
+        error: '分析超时，请稍后重试',
+        details: 'R 脚本执行时间过长'
       });
     } else {
-      res.status(500).json({ 
-        error: '抱歉，AI服务暂时不可用，请稍后再试。',
-        details: error.response?.data?.error || error.message
+      res.status(500).json({
+        error: '抱歉，服务暂时不可用，请稍后再试。',
+        details: error.message
       });
     }
+  }
+});
+
+// 重置对话历史
+router.post('/reset', async (req, res) => {
+  try {
+    await axios.post(`${AGENT_URL}/reset`);
+    res.json({ message: '对话已重置' });
+  } catch (error) {
+    res.status(500).json({ error: '重置失败' });
+  }
+});
+
+// 健康检查
+router.get('/health', async (req, res) => {
+  try {
+    const response = await axios.get(`${AGENT_URL}/health`, { timeout: 5000 });
+    res.json({
+      status: 'ok',
+      agent: response.data
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      message: 'Agent 服务不可用',
+      agentUrl: AGENT_URL
+    });
   }
 });
 

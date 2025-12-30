@@ -4,7 +4,7 @@
 
 | 模块 | AI版端口 | 基础版端口 | 对应目录 |
 |------|----------|-----------|----------|
-| **Transcriptomics** | 4964 | 4966 | `/home/ylab/GIST_shiny/` |
+| **Transcriptomics** | 4964 | 4966 | `/home/ylab/GIST_Transcriptome/` |
 | **Proteomics** | 4968 | 4967 | `/home/ylab/GIST_Protemics/` |
 | **Post-translational** | 4972 | 4971 | `/home/ylab/GIST_Phosphoproteomics/` |
 
@@ -83,7 +83,7 @@ sudo ./start_all_shiny.sh
 ./stop_shiny.sh 4964
 
 # 手动启动
-cd /home/ylab/GIST_shiny
+cd /home/ylab/GIST_Transcriptome
 nohup Rscript -e "options(shiny.port=4964, shiny.host='0.0.0.0'); shiny::runApp()" > ../GIST_web_all/logs/shiny/trans_ai.log 2>&1 &
 ```
 

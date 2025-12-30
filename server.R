@@ -2,6 +2,11 @@
 
 server <- function(input, output, session) {
 
+  # ==== 配置静态资源路径 ====
+  addResourcePath("precomputed", "www/precomputed")
+  addResourcePath("images", "www")
+  cat("✅ Server: 静态资源路径已配置\n")
+
   # ==== AI功能状态管理 ====
   ai_enabled <- reactiveVal(as.logical(Sys.getenv("ENABLE_AI_ANALYSIS", "TRUE")))
 
@@ -33,9 +38,38 @@ server <- function(input, output, session) {
   # ==== Module2 ====
   shinyjs::hide(id ="DE_overall_vol_result_sum")
   observeEvent(input$DE_all_vol_update, {
+    # 禁用按钮并更改文本为"正在分析中"
+    shinyjs::disable("DE_all_vol_update")
+    updateActionButton(session, "DE_all_vol_update",
+                      label = "🔄 正在分析中...",
+                      icon = icon("spinner", class = "fa-spin"))
+
+    # 使用JavaScript直接控制按钮状态
+    runjs("
+      $('#DE_all_vol_update').prop('disabled', true);
+      $('#DE_all_vol_update').addClass('disabled');
+      $('#DE_all_vol_update').html('<i class=\"fa fa-spinner fa-spin\"></i> 🔄 正在分析中...');
+    ")
+
+    # 显示加载状态
     shinyjs::show(id ="DE_overall_vol_result_sum")
     current_active_module("module2")
     cat("用户在Module2中点击了更新，设置为当前活跃模块\n")
+
+    # 延迟重新启用按钮并恢复原始文本
+    shinyjs::delay(3000, {
+      shinyjs::enable("DE_all_vol_update")
+      updateActionButton(session, "DE_all_vol_update",
+                        label = "Visualize",
+                        icon = icon("palette"))
+
+      # 使用JavaScript直接恢复按钮状态
+      runjs("
+        $('#DE_all_vol_update').prop('disabled', false);
+        $('#DE_all_vol_update').removeClass('disabled');
+        $('#DE_all_vol_update').html('<i class=\"fa fa-palette\"></i> Visualize');
+      ")
+    })
   })
   
   DE_overall_vol_dataset_tmp <- eventReactive(input$DE_all_vol_update, {
@@ -142,12 +176,27 @@ server <- function(input, output, session) {
     }
   )
   
-  # ==== Module3 ==== 
+  # ==== Module3 ====
   shinyjs::hide(id ="DE_overall_vol_result_sum_3")
   observeEvent(input$DE_all_vol_update_3, {
+    # 禁用按钮并更改文本为"正在分析中"
+    shinyjs::disable("DE_all_vol_update_3")
+    updateActionButton(session, "DE_all_vol_update_3",
+                      label = "🔄 正在分析中...",
+                      icon = icon("spinner", class = "fa-spin"))
+
+    # 显示加载状态
     shinyjs::show(id ="DE_overall_vol_result_sum_3")
     current_active_module("module3")
     cat("用户在Module3中点击了更新，设置为当前活跃模块\n")
+
+    # 延迟重新启用按钮并恢复原始文本
+    shinyjs::delay(3000, {
+      shinyjs::enable("DE_all_vol_update_3")
+      updateActionButton(session, "DE_all_vol_update_3",
+                        label = "Visualize",
+                        icon = icon("palette"))
+    })
   })
   
   DE_overall_vol_dataset_tmp_3 <- eventReactive(input$DE_all_vol_update_3, {
@@ -266,9 +315,24 @@ server <- function(input, output, session) {
   # === Module4 ====
   shinyjs::hide(id ="DE_overall_vol_result_sum_4")
   observeEvent(input$DE_all_vol_update_4, {
+    # 禁用按钮并更改文本为"正在分析中"
+    shinyjs::disable("DE_all_vol_update_4")
+    updateActionButton(session, "DE_all_vol_update_4",
+                      label = "🔄 正在分析中...",
+                      icon = icon("spinner", class = "fa-spin"))
+
+    # 显示加载状态
     shinyjs::show(id ="DE_overall_vol_result_sum_4")
     current_active_module("module4")
     cat("用户在Module4中点击了更新，设置为当前活跃模块\n")
+
+    # 延迟重新启用按钮并恢复原始文本
+    shinyjs::delay(3000, {
+      shinyjs::enable("DE_all_vol_update_4")
+      updateActionButton(session, "DE_all_vol_update_4",
+                        label = "Visualize",
+                        icon = icon("palette"))
+    })
   })
   
   DE_overall_vol_dataset_tmp_4 <- eventReactive(input$DE_all_vol_update_4, {
@@ -377,9 +441,24 @@ server <- function(input, output, session) {
   # === Module5 ====
   shinyjs::hide(id ="DE_overall_vol_result_sum_5")
   observeEvent(input$DE_all_vol_update_5, {
+    # 禁用按钮并更改文本为"正在分析中"
+    shinyjs::disable("DE_all_vol_update_5")
+    updateActionButton(session, "DE_all_vol_update_5",
+                      label = "🔄 正在分析中...",
+                      icon = icon("spinner", class = "fa-spin"))
+
+    # 显示加载状态
     shinyjs::show(id ="DE_overall_vol_result_sum_5")
     current_active_module("module5")
     cat("用户在Module5中点击了更新，设置为当前活跃模块\n")
+
+    # 延迟重新启用按钮并恢复原始文本
+    shinyjs::delay(3000, {
+      shinyjs::enable("DE_all_vol_update_5")
+      updateActionButton(session, "DE_all_vol_update_5",
+                        label = "Visualize",
+                        icon = icon("palette"))
+    })
   })
   
   DE_overall_vol_dataset_tmp_5 <- eventReactive(input$DE_all_vol_update_5, {
@@ -522,6 +601,9 @@ server <- function(input, output, session) {
     }
 
     if (input$ai_chat_message != "") {
+      # 禁用发送按钮防止重复发送
+      shinyjs::disable("ai_send_message")
+
       # 添加用户消息
       runjs(sprintf("addChatMessage('%s', true);", input$ai_chat_message))
       
@@ -542,10 +624,16 @@ server <- function(input, output, session) {
         } else {
           runjs(sprintf("addChatMessage('抱歉，出现了错误：%s', false);", result$error))
         }
+
+        # AI聊天完成后重新启用发送按钮
+        shinyjs::enable("ai_send_message")
+
       }, error = function(e) {
         runjs(sprintf("addChatMessage('抱歉，出现了错误：%s', false);", e$message))
+        # 出错时也要重新启用按钮
+        shinyjs::enable("ai_send_message")
       })
-      
+
       # 清空输入框
       updateTextInput(session, "ai_chat_message", value = "")
     }
@@ -588,7 +676,24 @@ server <- function(input, output, session) {
       return()
     }
 
-    runjs("addChatMessage('正在智能检测并分析当前模块图表...', true);")
+    # 禁用所有AI相关按钮，防止重复点击
+    shinyjs::disable("ai_analyze_current_plot_top")
+    shinyjs::disable("ai_analyze_current_plot_backup")
+    shinyjs::disable("ai_analyze_current_plot")
+    shinyjs::disable("ai_send_message")
+
+    # 禁用所有Visualize按钮，防止在AI分析期间生成新图表
+    shinyjs::disable("DE_all_vol_update")
+    shinyjs::disable("DE_all_vol_update_3")
+    shinyjs::disable("DE_all_vol_update_4")
+    shinyjs::disable("DE_all_vol_update_5")
+
+    # 更新按钮文本显示分析状态
+    updateActionButton(session, "ai_analyze_current_plot_top",
+                      label = "🔄 AI分析中...",
+                      icon = icon("spinner", class = "fa-spin"))
+
+    runjs("addChatMessage('🔄 正在智能检测并分析当前模块图表，请稍候...', true);")
     
     tryCatch({
       # 获取当前活跃的模块
@@ -672,7 +777,7 @@ server <- function(input, output, session) {
           ai_response <- gsub("\\n", "<br/>", result$content)
           ai_response <- gsub("'", "\\\\'", ai_response)  # 转义单引号
           runjs(sprintf("addChatMessage('%s', false);", ai_response))
-          
+
           # 提示用户PNG文件位置
           runjs(sprintf("addChatMessage('💾 图表已保存为: %s', false);", save_path))
         } else {
@@ -681,8 +786,43 @@ server <- function(input, output, session) {
       } else {
         runjs(sprintf("addChatMessage('❌ %s<br/>请先在任意模块中生成图表，然后再进行分析。', false);", plot_info$module_info))
       }
+
+      # AI分析完成后重新启用所有按钮并恢复文本
+      shinyjs::enable("ai_analyze_current_plot_top")
+      shinyjs::enable("ai_analyze_current_plot_backup")
+      shinyjs::enable("ai_analyze_current_plot")
+      shinyjs::enable("ai_send_message")
+
+      # 重新启用所有Visualize按钮
+      shinyjs::enable("DE_all_vol_update")
+      shinyjs::enable("DE_all_vol_update_3")
+      shinyjs::enable("DE_all_vol_update_4")
+      shinyjs::enable("DE_all_vol_update_5")
+
+      # 恢复按钮原始文本
+      updateActionButton(session, "ai_analyze_current_plot_top",
+                        label = "🤖 AI分析当前图表",
+                        icon = icon("robot"))
+
     }, error = function(e) {
       runjs(sprintf("addChatMessage('分析当前图表时出错：%s', false);", e$message))
+
+      # 出错时也要重新启用按钮并恢复文本
+      shinyjs::enable("ai_analyze_current_plot_top")
+      shinyjs::enable("ai_analyze_current_plot_backup")
+      shinyjs::enable("ai_analyze_current_plot")
+      shinyjs::enable("ai_send_message")
+
+      # 重新启用所有Visualize按钮
+      shinyjs::enable("DE_all_vol_update")
+      shinyjs::enable("DE_all_vol_update_3")
+      shinyjs::enable("DE_all_vol_update_4")
+      shinyjs::enable("DE_all_vol_update_5")
+
+      # 恢复按钮原始文本
+      updateActionButton(session, "ai_analyze_current_plot_top",
+                        label = "🤖 AI分析当前图表",
+                        icon = icon("robot"))
     })
   })
 
@@ -693,7 +833,19 @@ server <- function(input, output, session) {
       return()
     }
 
-    runjs("addChatMessage('正在智能分析当前模块图表（备用按钮）...', true);")
+    # 禁用所有AI相关按钮，防止重复点击
+    shinyjs::disable("ai_analyze_current_plot_top")
+    shinyjs::disable("ai_analyze_current_plot_backup")
+    shinyjs::disable("ai_analyze_current_plot")
+    shinyjs::disable("ai_send_message")
+
+    # 禁用所有Visualize按钮，防止在AI分析期间生成新图表
+    shinyjs::disable("DE_all_vol_update")
+    shinyjs::disable("DE_all_vol_update_3")
+    shinyjs::disable("DE_all_vol_update_4")
+    shinyjs::disable("DE_all_vol_update_5")
+
+    runjs("addChatMessage('🔄 正在智能分析当前模块图表（备用按钮），请稍候...', true);")
     
     tryCatch({
       # 使用智能图表获取函数
