@@ -1,3 +1,13 @@
+/* Agent Activity Panel Animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Global Body Styles */
 body {
   margin: 0;
