@@ -99,6 +99,75 @@ router.post('/', async (req, res) => {
   }
 });
 
+// SSE 流式聊天 - 实时 Agent 活动追踪
+router.post('/stream', async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: '消息不能为空' });
+    }
+
+    console.log(`[Chat/Stream] 收到请求: ${message.substring(0, 100)}...`);
+
+    // 设置 SSE 响应头
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
+    // 转发到 Python Agent SSE 端点
+    const agentResponse = await axios({
+      method: 'POST',
+      url: `${AGENT_URL}/chat/stream`,
+      data: { message },
+      headers: { 'Content-Type': 'application/json' },
+      responseType: 'stream',
+      timeout: 600000 // 10分钟超时
+    });
+
+    // 管道传输 SSE 流
+    agentResponse.data.on('data', (chunk) => {
+      res.write(chunk);
+      if (typeof res.flush === 'function') {
+        res.flush();
+      }
+    });
+
+    agentResponse.data.on('end', () => {
+      console.log('[Chat/Stream] 流式传输完成');
+      res.end();
+    });
+
+    agentResponse.data.on('error', (error) => {
+      console.error('[Chat/Stream] 流式传输错误:', error.message);
+      res.write(`event: error\ndata: ${JSON.stringify({ message: error.message })}\n\n`);
+      res.end();
+    });
+
+  } catch (error) {
+    console.error('[Chat/Stream] 错误:', error.message);
+
+    // 如果响应头尚未发送，设置 SSE 头
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    }
+
+    const errorMessage = error.code === 'ECONNREFUSED'
+      ? 'AI Agent 服务未启动'
+      : error.code === 'ETIMEDOUT'
+        ? '分析超时'
+        : error.message;
+
+    res.write(`event: error\ndata: ${JSON.stringify({ message: errorMessage })}\n\n`);
+    res.end();
+  }
+});
+
 // 重置对话历史
 router.post('/reset', async (req, res) => {
   try {

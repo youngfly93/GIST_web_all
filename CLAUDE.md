@@ -4,127 +4,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Application Overview
 
-This is a **dbGIST (database GIST)** hybrid application combining a Shiny web app for GIST gene expression analysis with a modern React frontend and Node.js backend. The system provides interactive visualizations, statistical analyses, and AI-powered gene analysis for GIST genomic research.
+**dbGIST** is a multi-omics gene expression analysis platform for gastrointestinal stromal tumors (GIST). It combines a React frontend, Node.js backend, multiple R Shiny applications (one per omics type), and a Plumber REST API layer. The platform provides interactive visualizations, statistical analyses, AI-powered gene analysis, and non-coding RNA interaction data.
 
-## Key Commands
+## Commands
 
-### Development & Running
+### Install & Run
 ```bash
-# Install all dependencies (root, backend, frontend)
-npm run install:all
+npm run install:all          # Install root + backend + frontend deps
 
-# Run full stack (React frontend + Node.js backend + R Shiny)
-npm run dev:full              # Linux/Mac
-npm run dev:full:windows      # Windows
-./start_with_shiny.sh         # Linux/Mac script
-start_with_shiny.bat          # Windows script
+# Development (frontend + backend only, no Shiny)
+npm run dev                  # Runs both via concurrently
+npm run dev:backend          # Backend only (port 8000, uses node --watch)
+npm run dev:frontend         # Frontend only (port 5173)
 
-# Run individual components
-npm run dev                   # Frontend + Backend only
-npm run dev:backend           # Backend only
-npm run dev:frontend          # Frontend only
+# Full stack including all Shiny apps (on production server)
+bash start_all_shiny.sh      # Starts all Shiny apps on ports 4964-4975
+bash stop_all_shiny.sh       # Stops all Shiny apps
 
-# R Shiny only (port 4964)
-cd GIST_shiny && R -e "shiny::runApp(port = 4964)"
+# Full stack: Agent + Backend + Frontend (WSL/Linux)
+bash start_all.sh            # Ports 5001, 8000, 5173
+bash stop_all.sh
 ```
 
-### Build & Deployment
+### Build & Lint
 ```bash
-# Frontend build
-cd frontend && npm run build
-
-# Frontend linting
-cd frontend && npm run lint
-
-# Docker deployment
-docker-compose up -d
-
-# Manual deployment (see scripts/deploy.sh)
-./scripts/deploy.sh
+cd frontend && npm run build   # TypeScript check + Vite production build
+cd frontend && npm run lint    # ESLint
 ```
 
-### Testing
+### Docker
 ```bash
-# R tests (in GIST_shiny/)
-R -e "testthat::test_dir('tests')"
-
-# Run specific test
-R -e "testthat::test_file('tests/test_modules.R')"
+docker-compose up -d           # gist-web (8000/5173) + gist-shiny (3838) + nginx (80/443)
 ```
 
-## Architecture & Structure
+### Plumber API (R REST endpoints for omics data)
+```bash
+cd plumber_api
+Rscript start_api.R                    # All APIs via future::multisession
+Rscript start_api.R proteomics         # Single module (port 4966)
+Rscript start_api.R phospho            # Port 4968
+Rscript start_api.R transcriptomics    # Port 4970
+Rscript start_api.R singlecell         # Port 4972
+Rscript start_api.R noncoding          # Port 4974
+```
 
-### System Components
-This is a **hybrid multi-stack application** with three main layers:
+## Architecture
 
-1. **React Frontend** (`frontend/`): Modern TypeScript/React SPA with Vite build system
-   - Main pages: Home, GeneInfo, MiRNAResults, AIChat, GistDatabase, Guide, Dataset
-   - Components: FloatingChat, GeneAssistant, SmartCapture, PageNavigator
-   - Build: `npm run build`, Lint: `npm run lint`
+### Service Topology
+```
+React Frontend (5173) ──proxy /api──> Node.js Backend (8000) ──> AI APIs (ARK/DeepSeek)
+                       ──proxy /plots──> Backend static files
+                       ──iframe──> R Shiny Apps (4964-4975, per-omics)
+                                   Plumber APIs (4966-4974, REST endpoints)
+```
 
-2. **Node.js Backend** (`backend/`): Express API server with AI integration
-   - Routes: `/api/chat`, `/api/gene`, `/api/ncrna`, `/api/proxy`
-   - Services: geneFetcher, ncRNAService
-   - AI integration via external APIs (ARK/DeepSeek)
+Production: Nginx reverse proxy on port 80/443 fronts everything. Domain: dbgist.com / chatgist.online.
 
-3. **R Shiny Database** (`GIST_shiny/`): Gene expression analysis engine
-   - **global.R**: Dependencies, data loading, analysis functions
-   - **ui.R**: bs4Dash dashboard with 5 analysis modules
-   - **server.R**: Reactive logic, plot generation, statistical analysis
-   - **AI modules**: `modules/ai_chat_module.R`, `modules/shiny_ai_module.R`
+### Three Main Layers
 
-### Service Integration
-- **Frontend** (port 5173) → **Backend** (port 8000) → **Shiny** (port 4964)
-- Docker deployment with Nginx reverse proxy
-- Non-coding RNA data integration (circRNA, lncRNA, miRNA)
-- WebSocket support for real-time AI chat
+**1. React Frontend** (`frontend/`) — TypeScript/React SPA with Vite
+- Router in `App.tsx`: `/` Home, `/dataset`, `/guide`, `/gene-info`, `/ai-chat`, `/mirna-results`, `/circrna-results`, `/lncrna-results`
+- `config.ts`: Dynamic API URL and Shiny iframe URL resolution based on hostname/port (localhost vs port-81 vs production)
+- Vite proxies `/api` and `/plots` to backend at localhost:8000
+- `FloatingChat` component provides persistent AI chat overlay across all pages
 
-### Key R Functions (GIST_shiny/global.R)
-- `Judge_GENESYMBOL()`: Gene symbol validation
-- `dbGIST_boxplot_*()`: Clinical parameter visualization (Risk, Mutation, Age, etc.)
-- `dbGIST_cor_ID()`: Gene-gene correlation analysis
+**2. Node.js Backend** (`backend/`) — Express 5, ES Modules
+- `src/index.js`: Mounts routes, serves static plots from `public/plots/`
+- Routes: `chat.js` (AI chat via ARK/DeepSeek API), `gene.js` (gene info), `ncrna.js` (non-coding RNA lookups), `proxy.js` (forwarding)
+- Services: `geneFetcher.js`, `ncRNAService.js`
+- Environment: `PORT` (default 8000), `AI_API_KEY`, `ARK_API_URL`, `ARK_MODEL_ID`
+
+**3. R Shiny Applications** (one directory per omics type, each with `global.R`/`ui.R`/`server.R`)
+
+| Directory | Omics Type | AI Port | Non-AI Port |
+|-----------|-----------|---------|-------------|
+| `GIST_Transcriptome/` | Transcriptomics | 4964 | 4966 |
+| `GIST_Protemics/` | Proteomics | 4968 | 4967 |
+| `GIST_Phosphoproteomics/` | Phosphoproteomics | 4972 | 4971 |
+| `GIST_SingleCell/` | Single Cell | — | — |
+| `GIST_noncoding/` | Non-coding RNA | — | — |
+
+Each Shiny app uses bs4Dash, ggplot2, and has AI modules (`modules/ai_chat_module.R`) for image-based chart analysis. The root-level `global.R`, `server.R`, `ui.R` are copies/references for the original GIST_shiny app.
+
+**4. Plumber API** (`plumber_api/`) — R REST endpoints
+- One plumber file per omics: `plumber_proteomics.R`, `plumber_phospho.R`, `plumber_transcriptomics.R`, `plumber_singlecell.R`, `plumber_noncoding.R`
+- `start_api.R` launches all or individual modules with configurable ports via env vars
+
+### Key R Analysis Functions (in Shiny `global.R` files)
+- `Judge_GENESYMBOL()`: Validates gene symbols against expression matrix
+- `dbGIST_boxplot_*()`: Generates boxplots by clinical parameter (Risk, Mutation, Age, Gender, Location, etc.)
+- `dbGIST_cor_ID()`: Gene-gene correlation scatter plots
 - `dbGIST_boxplot_Drug()`: Drug resistance analysis with ROC curves
 - `dbGIST_boxplot_PrePost()`: Pre/post treatment comparison
 
-### Data Architecture
-- **Expression matrices**: `GIST_shiny/original/dbGIST_matrix(2).Rdata` with clinical annotations
-- **Pathway databases**: MSigDB and WikiPathways for enrichment analysis
-- **Non-coding RNA**: `backend/data/gene_ncrna_mapping.json` for interaction data
-- **Clinical categories**: Age, Gender, Risk, Location, Mutation, Metastasis, Treatment response
-
-### AI System Integration
-- Multi-modal AI chat system with image analysis capabilities
-- Active module tracking for context-aware analysis
-- Integration between Shiny reactive system and modern frontend
-- External AI APIs configured via environment variables
+### Data Files
+- Expression matrices: `GIST_*/original/` directories (`.Rdata`, `.RDS` files — gitignored)
+- Pathway databases: MSigDB (`GSEA_hallmark.gmt`) and WikiPathways in each Shiny app
+- Non-coding RNA mappings: `backend/data/gene_ncrna_mapping.json`
+- Large interaction files at project root: `hsa_MTI.csv`, `*_interaction.txt` (gitignored)
 
 ## Development Notes
 
-### Environment Setup
-```bash
-# Backend environment variables (.env)
-PORT=8000
-NODE_ENV=development
-AI_API_KEY=your_api_key
-
-# Frontend uses Vite env variables
-```
-
-### Key Technologies
-- **Reactive programming**: Shiny uses reactive expressions for dynamic updates
-- **Modern stack**: React/TypeScript frontend with Node.js API layer
-- **Statistical analysis**: t-tests, correlation analysis, ROC curves via R
-- **Visualization**: ggplot2 for statistical plots, React components for UI
-- **Deployment**: Docker Compose with multi-service orchestration
-
-### Common Development Tasks
-- **Adding new API endpoints**: Create route in `backend/src/routes/`, add to `backend/src/index.js`
-- **Adding new Shiny modules**: Create in `GIST_shiny/modules/`, source in `global.R`
-- **Frontend pages**: Add to `frontend/src/pages/`, update router in `App.tsx`
-- **Gene data updates**: Modify `GIST_shiny/original/` data files, restart Shiny
-
-### Debugging Tips
-- Check service ports: Frontend (5173), Backend (8000), Shiny (4964)
-- Shiny logs: Check R console output or Docker logs
-- API calls: Frontend uses `/api` prefix, proxied by Vite to backend
-- CORS issues: Backend configured for localhost development
+- **All GIST_* Shiny directories are gitignored** — they are separate repos/deployments. The main repo tracks only `frontend/`, `backend/`, `plumber_api/`, root configs, and docs.
+- **Shell scripts are gitignored** except those checked in before the rule was added. Check `start_all_shiny.sh` for the canonical multi-app startup sequence on production.
+- Frontend embeds Shiny apps via iframes. The URL mapping in `frontend/src/config.ts` determines which port/path to use based on the current hostname.
+- Backend uses Express 5 with ES module syntax (`import`/`export`, `type: "module"` in package.json).
+- AI chat routes forward to ARK API (DeepSeek model) — configured via `ARK_API_KEY`, `ARK_API_URL`, `ARK_MODEL_ID` env vars in `backend/.env`.

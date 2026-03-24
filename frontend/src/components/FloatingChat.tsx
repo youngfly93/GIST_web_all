@@ -2,13 +2,212 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
-import { Bot, User, Camera, BarChart3, X, Image, Hand, Target, Lightbulb } from 'lucide-react';
+import {
+  Bot, User, Camera, BarChart3, X, Image, Hand, Target, Lightbulb,
+  Brain, Wrench, Loader, CheckCircle, AlertCircle, Activity, ChevronDown
+} from 'lucide-react';
+
+// Agent 活动追踪类型
+interface AgentActivity {
+  type: 'thinking' | 'tool_call' | 'tool_executing' | 'tool_result' | 'text' | 'error';
+  timestamp: number;
+  data: {
+    content?: string;
+    tool?: string;
+    args?: Record<string, unknown>;
+    message?: string;
+    image?: string;
+    success?: boolean;
+    delta?: string;
+    id?: string;
+  };
+}
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  image?: string; // base64 encoded image
+  image?: string;
+  activities?: AgentActivity[];  // Agent 活动日志
+  isStreaming?: boolean;         // 是否正在流式传输
 }
+
+// ActivityPanel 组件 - 显示 Agent 活动日志
+const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolean }> = ({
+  activities,
+  isStreaming
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!activities || activities.length === 0) return null;
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'thinking': return <Brain size={14} />;
+      case 'tool_call': return <Wrench size={14} />;
+      case 'tool_executing': return <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />;
+      case 'tool_result': return <CheckCircle size={14} />;
+      case 'error': return <AlertCircle size={14} />;
+      default: return <Activity size={14} />;
+    }
+  };
+
+  const getActivityColor = (type: string, success?: boolean) => {
+    switch (type) {
+      case 'thinking': return '#8B5CF6';
+      case 'tool_call': return '#3B82F6';
+      case 'tool_executing': return '#F59E0B';
+      case 'tool_result': return success !== false ? '#10B981' : '#EF4444';
+      case 'error': return '#EF4444';
+      default: return '#6B7280';
+    }
+  };
+
+  const getActivityLabel = (activity: AgentActivity) => {
+    switch (activity.type) {
+      case 'thinking':
+        return activity.data.content || '正在思考...';
+      case 'tool_call':
+        return `调用工具: ${activity.data.tool}`;
+      case 'tool_executing':
+        return activity.data.message || '执行中...';
+      case 'tool_result':
+        return activity.data.success !== false
+          ? (activity.data.message || '执行完成')
+          : `失败: ${activity.data.message}`;
+      case 'error':
+        return `错误: ${activity.data.message}`;
+      default:
+        return '';
+    }
+  };
+
+  // 过滤掉 text 类型的活动，只显示有意义的活动
+  const displayActivities = activities.filter(a => a.type !== 'text');
+  if (displayActivities.length === 0) return null;
+
+  return (
+    <div style={{
+      marginBottom: '8px',
+      borderRadius: '8px',
+      backgroundColor: '#F9FAFB',
+      border: '1px solid #E5E7EB',
+      overflow: 'hidden',
+      fontSize: '12px'
+    }}>
+      {/* 可折叠头部 */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          width: '100%',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          border: 'none',
+          backgroundColor: 'transparent',
+          cursor: 'pointer',
+          color: '#6B7280'
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Activity size={14} />
+          Agent 活动 ({displayActivities.length})
+          {isStreaming && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
+        </span>
+        <ChevronDown
+          size={14}
+          style={{
+            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
+            transition: 'transform 0.2s'
+          }}
+        />
+      </button>
+
+      {/* 活动列表 */}
+      {isExpanded && (
+        <div style={{
+          padding: '0 12px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px'
+        }}>
+          {displayActivities.map((activity, index) => (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                padding: '6px 8px',
+                backgroundColor: 'white',
+                borderRadius: '6px',
+                borderLeft: `3px solid ${getActivityColor(activity.type, activity.data.success)}`,
+                fontSize: '11px'
+              }}
+            >
+              <span style={{
+                color: getActivityColor(activity.type, activity.data.success),
+                marginTop: '2px',
+                flexShrink: 0
+              }}>
+                {getActivityIcon(activity.type)}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#374151', marginBottom: '2px', wordBreak: 'break-word' }}>
+                  {getActivityLabel(activity)}
+                </div>
+                {/* 工具调用参数 */}
+                {activity.type === 'tool_call' && activity.data.args && (
+                  <pre style={{
+                    margin: 0,
+                    padding: '4px 6px',
+                    backgroundColor: '#F3F4F6',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    overflow: 'auto',
+                    maxHeight: '80px',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all'
+                  }}>
+                    {JSON.stringify(activity.data.args, null, 2)}
+                  </pre>
+                )}
+                {/* 工具结果图片缩略图 */}
+                {activity.type === 'tool_result' && activity.data.image && (
+                  <div style={{ marginTop: '4px' }}>
+                    <img
+                      src={activity.data.image as string}
+                      alt="分析结果"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '80px',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => window.open(activity.data.image as string, '_blank')}
+                    />
+                  </div>
+                )}
+              </div>
+              <span style={{
+                color: '#9CA3AF',
+                fontSize: '10px',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}>
+                {new Date(activity.timestamp).toLocaleTimeString('zh-CN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FloatingChat: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -16,6 +215,8 @@ const FloatingChat: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamMode, setStreamMode] = useState(true);
+  // 当前实时活动状态
+  const [currentActivity, setCurrentActivity] = useState<string>('');
   const [dragOver, setDragOver] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -226,7 +427,7 @@ const FloatingChat: React.FC = () => {
       
       if (streamMode) {
         // 流式处理图片分析
-        const response = await fetch('http://localhost:8000/api/chat', {
+        const response = await fetch('/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -278,7 +479,7 @@ const FloatingChat: React.FC = () => {
         }
       } else {
         // 非流式处理图片分析
-        const response = await axios.post('http://localhost:8000/api/chat', {
+        const response = await axios.post('/api/chat', {
           message: analysisPrompt,
           image: base64Image,
           stream: false
@@ -302,6 +503,70 @@ const FloatingChat: React.FC = () => {
     }
   };
 
+  // SSE 解析辅助函数
+  const parseSSEStream = async (
+    url: string,
+    body: object,
+    onEvent: (event: { type: string; data: Record<string, unknown> }) => void,
+    onDone: () => void,
+    onError: (error: Error) => void
+  ) => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = '';
+        let currentData = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            currentData = line.slice(6);
+            if (currentEvent && currentData) {
+              try {
+                const parsed = JSON.parse(currentData);
+                onEvent({ type: currentEvent, data: parsed });
+              } catch (e) {
+                console.error('Failed to parse SSE data:', e);
+              }
+              currentEvent = '';
+              currentData = '';
+            }
+          }
+        }
+      }
+
+      onDone();
+    } catch (error) {
+      onError(error as Error);
+    }
+  };
+
   const sendMessage = async (useStream: boolean = streamMode) => {
     if (!input.trim()) return;
 
@@ -312,90 +577,129 @@ const FloatingChat: React.FC = () => {
     setLoading(true);
 
     if (useStream) {
-      // 流式处理
-      try {
-        const response = await fetch('http://localhost:8000/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: currentInput,
-            stream: true
-          }),
-        });
+      // SSE 流式处理 - 带活动追踪
+      // 创建带活动追踪的流式消息
+      const streamingMessage: Message = {
+        role: 'assistant',
+        content: '',
+        activities: [],
+        isStreaming: true
+      };
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+      let messageIndex = -1;
+      setMessages(prev => {
+        const newMessages = [...prev, streamingMessage];
+        messageIndex = newMessages.length - 1;
+        return newMessages;
+      });
 
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        
-        // 添加一个空的AI消息用于流式更新
-        let streamingMessageIndex = -1;
-        setMessages(prev => {
-          const newMessages = [...prev, { role: 'assistant' as const, content: '' }];
-          streamingMessageIndex = newMessages.length - 1;
-          return newMessages;
-        });
+      // 用于累积状态
+      let currentContent = '';
+      let currentImage: string | undefined;
+      const activities: AgentActivity[] = [];
 
-        if (reader) {
-          let streamingContent = '';
+      await parseSSEStream(
+        '/api/chat/stream',
+        { message: currentInput },
+        // onEvent
+        (event) => {
+          const activity: AgentActivity = {
+            type: event.type as AgentActivity['type'],
+            timestamp: Date.now(),
+            data: event.data as AgentActivity['data']
+          };
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            streamingContent += chunk;
-
-            // 检测并提取图片标记 [IMAGE:/plots/xxx.png]
-            let displayContent = streamingContent;
-            let imageUrl: string | undefined;
-            const imageMatch = streamingContent.match(/\[IMAGE:(\/plots\/[^\]]+)\]/);
-            if (imageMatch) {
-              imageUrl = `http://localhost:8000${imageMatch[1]}`;
-              displayContent = streamingContent.replace(/\n*\[IMAGE:[^\]]+\]/, '');
-            }
-
-            // 更新流式消息内容
-            setMessages(prev => {
-              const newMessages = [...prev];
-              if (streamingMessageIndex >= 0) {
-                newMessages[streamingMessageIndex] = {
-                  role: 'assistant',
-                  content: displayContent,
-                  image: imageUrl
-                };
-              }
-              return newMessages;
-            });
+          // 只记录非 text 类型的活动
+          if (event.type !== 'text' && event.type !== 'done') {
+            activities.push(activity);
           }
+
+          // 实时更新当前活动状态（显示在 loading 指示器中）
+          if (event.type === 'thinking') {
+            setCurrentActivity(`🧠 ${event.data.content || '正在分析...'}`);
+          } else if (event.type === 'tool_call') {
+            setCurrentActivity(`🔧 调用工具: ${event.data.tool}`);
+          } else if (event.type === 'tool_executing') {
+            setCurrentActivity(`⏳ ${event.data.message || '执行中...'}`);
+          } else if (event.type === 'tool_result') {
+            setCurrentActivity(`✅ ${event.data.message || '完成'}`);
+          } else if (event.type === 'text') {
+            setCurrentActivity('📝 生成回复中...');
+          }
+
+          // 更新内容
+          if (event.type === 'text' && event.data.content) {
+            currentContent = event.data.content as string;
+          }
+
+          // 更新图片 - 使用相对路径，由 Vite 代理处理
+          if (event.type === 'tool_result' && event.data.image) {
+            currentImage = event.data.image as string;
+          }
+
+          // 更新消息状态
+          setMessages(prev => {
+            const newMessages = [...prev];
+            if (messageIndex >= 0 && messageIndex < newMessages.length) {
+              newMessages[messageIndex] = {
+                role: 'assistant',
+                content: currentContent,
+                image: currentImage,
+                activities: [...activities],
+                isStreaming: true
+              };
+            }
+            return newMessages;
+          });
+        },
+        // onDone
+        () => {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            if (messageIndex >= 0 && messageIndex < newMessages.length) {
+              newMessages[messageIndex] = {
+                ...newMessages[messageIndex],
+                isStreaming: false
+              };
+            }
+            return newMessages;
+          });
+          setLoading(false);
+          setCurrentActivity(''); // 清除活动状态
+        },
+        // onError
+        (error) => {
+          console.error('SSE stream error:', error);
+          setCurrentActivity(''); // 清除活动状态
+          setMessages(prev => {
+            const newMessages = [...prev];
+            if (messageIndex >= 0 && messageIndex < newMessages.length) {
+              newMessages[messageIndex] = {
+                role: 'assistant',
+                content: '抱歉，服务暂时不可用，请稍后重试。',
+                isStreaming: false,
+                activities: [...activities, {
+                  type: 'error',
+                  timestamp: Date.now(),
+                  data: { message: error.message }
+                }]
+              };
+            }
+            return newMessages;
+          });
+          setLoading(false);
         }
-      } catch (error: any) {
-        console.error('Stream chat error:', error);
-        const errorMessage: Message = { 
-          role: 'assistant', 
-          content: '抱歉，流式服务暂时不可用，请稍后重试。'
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      } finally {
-        setLoading(false);
-      }
+      );
     } else {
       // 非流式处理（备用方案）
       try {
-        const response = await axios.post('http://localhost:8000/api/chat', {
+        const response = await axios.post('/api/chat', {
           message: currentInput,
           stream: false
         });
 
-        // 处理返回的图片路径，转换为完整 URL
-        let imageUrl = response.data.image;
-        if (imageUrl && imageUrl.startsWith('/plots/')) {
-          imageUrl = `http://localhost:8000${imageUrl}`;
-        }
+        // 图片路径已经是相对路径，Vite 代理会处理
+        const imageUrl = response.data.image;
 
         const aiMessage: Message = {
           role: 'assistant',
@@ -683,6 +987,14 @@ const FloatingChat: React.FC = () => {
               lineHeight: '1.4',
               border: msg.role === 'assistant' ? '1px solid #e0e0e0' : 'none'
             }}>
+              {/* Agent 活动面板 */}
+              {msg.role === 'assistant' && msg.activities && msg.activities.length > 0 && (
+                <ActivityPanel
+                  activities={msg.activities}
+                  isStreaming={msg.isStreaming || false}
+                />
+              )}
+
               {/* 显示图片 */}
               {msg.image && (
                 <div style={{ marginBottom: '8px' }}>
@@ -751,9 +1063,13 @@ const FloatingChat: React.FC = () => {
               backgroundColor: 'white',
               padding: '10px 12px',
               borderRadius: '12px',
-              border: '1px solid #e0e0e0'
+              border: '1px solid #e0e0e0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}>
-              {streamMode ? 'AI正在回复...' : 'AI正在思考...'}
+              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              {currentActivity || (streamMode ? 'AI 正在处理...' : 'AI 正在思考...')}
             </div>
           </div>
         )}

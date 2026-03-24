@@ -8,6 +8,7 @@ import AIChat from './pages/AIChat';
 import MiRNAResults from './pages/MiRNAResults';
 import NcRNAResults from './pages/NcRNAResults';
 import IconPreview from './pages/IconPreview';
+import FloatingChat from './components/FloatingChat';
 import './App.css';
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
             <Route path="/icon-preview" element={<IconPreview />} />
           </Routes>
         </main>
+        <FloatingChat />
         <footer className="footer">
           <p>&copy; 2024 ChatGIST - 基因信息智能助手</p>
         </footer>
