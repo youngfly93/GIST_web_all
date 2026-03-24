@@ -251,65 +251,22 @@ build_summary <- function(gene = "") {
   if (has_sun) {
     survival_entries <- Filter(Negate(is.null), lapply(c("OS", "PFS"), function(type) {
       tryCatch({
-        clinical_df <- Protemics_list[[2]]$Clinical
-        clinical_df$Expr <- as.numeric(Protemics_list[[2]]$Matrix[gene, ])
-
-        time_col <- ifelse(type == "OS", "OS.time", "PFS.time")
-        event_col <- ifelse(type == "OS", "OS", "PFS")
-        valid <- !is.na(clinical_df[[time_col]]) & !is.na(clinical_df[[event_col]]) & !is.na(clinical_df$Expr)
-        clinical_df <- clinical_df[valid, ]
-        if (nrow(clinical_df) < 10) return(NULL)
-
-        res.cut <- survminer::surv_cutpoint(
-          clinical_df,
-          time = time_col,
-          event = event_col,
-          variables = "Expr"
+        km_result <- KM_function(
+          Protemics2_Clinical = Protemics_list[[2]]$Clinical,
+          CutOff_point = "Auto",
+          Survival_type = type,
+          ID = gene
         )
-        cutoff_value <- res.cut$cutpoint$cutpoint
-        res.cat <- survminer::surv_categorize(res.cut)
-        res.cat$Expr <- factor(res.cat$Expr, levels = c("low", "high"))
-        formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
-        cox_fit <- survival::coxph(formula, data = res.cat)
-        cox_sum <- summary(cox_fit)
-
-        list(
-          type = type,
-          hazard_ratio = cox_sum$coefficients[, "exp(coef)"],
-          p_value = cox_sum$coefficients[, "Pr(>|z|)"],
-          ci_lower = cox_sum$conf.int[, "lower .95"],
-          ci_upper = cox_sum$conf.int[, "upper .95"],
-          n_high = sum(res.cat$Expr == "high", na.rm = TRUE),
-          n_low = sum(res.cat$Expr == "low", na.rm = TRUE),
-          cutoff_value = cutoff_value
-        )
+        stats <- if (is.list(km_result)) km_result$statistics else NULL
+        if (is.null(stats)) return(NULL)
+        c(list(type = type), stats)
       }, error = function(e) NULL)
     }))
     if (length(survival_entries) > 0) result$survival <- unname(survival_entries)
 
     drug_resistance <- tryCatch({
-      values <- as.numeric(Protemics_list[[2]]$Matrix[gene, ])
-      response <- Protemics_list[[2]]$Clinical$IM.Response[
-        match(colnames(Protemics_list[[2]]$Matrix), Protemics_list[[2]]$Clinical$Sample.ID)
-      ]
-      df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
-      df <- na.omit(df)
-      if (nrow(df) == 0) {
-        NULL
-      } else {
-        auc_val <- NULL
-        if (length(unique(df$grp)) == 2) {
-          tryCatch({
-            roc_obj <- pROC::roc(df$grp, df$val, quiet = TRUE)
-            auc_val <- as.numeric(pROC::auc(roc_obj))
-          }, error = function(e) NULL)
-        }
-
-        list(
-          auc = auc_val,
-          n_samples = nrow(df)
-        )
-      }
+      im_result <- dbGIST_Proteomics_boxplot_IM.Response(ID = gene, DB = Protemics_list)
+      if (is.list(im_result) && !is.null(im_result$statistics)) im_result$statistics else NULL
     }, error = function(e) NULL)
     if (!is.null(drug_resistance)) result$drug_resistance <- drug_resistance
   }
@@ -427,12 +384,16 @@ function(gene = "", type = "OS", cutoff = "Auto") {
   }
 
   tryCatch({
-    p <- KM_function(
+    km_result <- KM_function(
       Protemics2_Clinical = Protemics_list[[2]]$Clinical,
       CutOff_point = cutoff,
       Survival_type = type,
       ID = gene
     )
+
+    # KM_function now returns list(plot, statistics)
+    km_plot <- if (is.list(km_result) && !is.null(km_result$plot)) km_result$plot else km_result
+    km_stats <- if (is.list(km_result)) km_result$statistics else NULL
 
     result <- list(
       gene   = gene,
@@ -440,51 +401,12 @@ function(gene = "", type = "OS", cutoff = "Auto") {
       cutoff = cutoff
     )
 
-    if (!is.null(p)) {
-      result$plot <- plot_to_base64(p, width = 1000, height = 800)
-
-      # Extract survival statistics
-      tryCatch({
-        clinical <- Protemics_list[[2]]$Clinical
-        clinical$Expr <- as.numeric(Protemics_list[[2]]$Matrix[gene, ])
-
-        time_col  <- ifelse(type == "OS", "OS.time", "PFS.time")
-        event_col <- ifelse(type == "OS", "OS", "PFS")
-
-        res.cut <- survminer::surv_cutpoint(clinical,
-          time = time_col, event = event_col, variables = "Expr"
-        )
-        cutoff_value <- if (cutoff == "Median") {
-          median(clinical$Expr, na.rm = TRUE)
-        } else if (cutoff == "Mean") {
-          mean(clinical$Expr, na.rm = TRUE)
-        } else {
-          res.cut$cutpoint$cutpoint
-        }
-        result$cutoff_value <- cutoff_value
-
-        res.cat <- survminer::surv_categorize(res.cut)
-        if (cutoff != "Auto") {
-          res.cat$Expr <- ifelse(clinical$Expr > cutoff_value, "high", "low")
-        }
-        # Ensure low is reference level (consistent with KM_function in Protemic.R)
-        res.cat$Expr <- factor(res.cat$Expr, levels = c("low", "high"))
-
-        formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
-        cox_fit <- survival::coxph(formula, data = res.cat)
-        cox_sum <- summary(cox_fit)
-
-        result$statistics <- list(
-          hazard_ratio = cox_sum$coefficients[, "exp(coef)"],
-          p_value      = cox_sum$coefficients[, "Pr(>|z|)"],
-          ci_lower     = cox_sum$conf.int[, "lower .95"],
-          ci_upper     = cox_sum$conf.int[, "upper .95"],
-          n_high       = sum(res.cat$Expr == "high", na.rm = TRUE),
-          n_low        = sum(res.cat$Expr == "low", na.rm = TRUE)
-        )
-      }, error = function(e) {
-        cat("⚠️ Stats extraction error:", conditionMessage(e), "\n")
-      })
+    if (!is.null(km_plot)) {
+      result$plot <- plot_to_base64(km_plot, width = 1000, height = 800)
+      if (!is.null(km_stats)) {
+        result$cutoff_value <- km_stats$cutoff_value
+        result$statistics <- km_stats
+      }
     }
 
     result
@@ -508,42 +430,18 @@ function(gene = "") {
   }
 
   tryCatch({
-    p <- dbGIST_Proteomics_boxplot_IM.Response(ID = gene, DB = Protemics_list)
+    im_result <- dbGIST_Proteomics_boxplot_IM.Response(ID = gene, DB = Protemics_list)
 
     result <- list(gene = gene)
 
-    if (!is.null(p)) {
-      result$plot <- plot_to_base64(p, width = 1000, height = 600)
+    if (!is.null(im_result)) {
+      im_plot <- if (is.list(im_result) && !is.null(im_result$plot)) im_result$plot else im_result
+      im_stats <- if (is.list(im_result)) im_result$statistics else NULL
 
-      # Extract basic statistics
-      tryCatch({
-        values  <- as.numeric(Protemics_list[[2]]$Matrix[gene, ])
-        response <- Protemics_list[[2]]$Clinical$IM.Response[
-          match(colnames(Protemics_list[[2]]$Matrix), Protemics_list[[2]]$Clinical$Sample.ID)
-        ]
-        df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
-        df <- na.omit(df)
-
-        n_samples <- nrow(df)
-        groups <- table(df$grp)
-
-        # Compute AUC if two groups
-        auc_val <- NULL
-        if (length(unique(df$grp)) == 2) {
-          tryCatch({
-            roc_obj <- pROC::roc(df$grp, df$val, quiet = TRUE)
-            auc_val <- as.numeric(pROC::auc(roc_obj))
-          }, error = function(e) NULL)
-        }
-
-        result$statistics <- list(
-          auc       = auc_val,
-          n_samples = n_samples,
-          groups    = as.list(groups)
-        )
-      }, error = function(e) {
-        cat("⚠️ Drug resistance stats error:", conditionMessage(e), "\n")
-      })
+      result$plot <- plot_to_base64(im_plot, width = 1000, height = 600)
+      if (!is.null(im_stats)) {
+        result$statistics <- im_stats
+      }
     } else {
       result$error <- paste0("No IM response data for ", gene)
     }

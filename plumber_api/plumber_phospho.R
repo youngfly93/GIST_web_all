@@ -261,34 +261,15 @@ build_summary <- function(gene = "") {
   if (has_sun && (site_id %in% rownames(Phosphoproteomics_list[[1]]$Matrix))) {
     survival_entries <- Filter(Negate(is.null), lapply(c("OS", "PFS"), function(type) {
       tryCatch({
-        clinical_df <- Phosphoproteomics_list[[1]]$Clinical
-        clinical_df$Expr <- as.numeric(Phosphoproteomics_list[[1]]$Matrix[site_id, ])
-
-        time_col <- ifelse(type == "OS", "OS.time", "PFS.time")
-        event_col <- ifelse(type == "OS", "OS", "PFS")
-        res.cut <- survminer::surv_cutpoint(
-          clinical_df,
-          time = time_col,
-          event = event_col,
-          variables = "Expr"
+        km_result <- Pho_KM_function(
+          Protemics2_Clinical = Phosphoproteomics_list[[1]]$Clinical,
+          CutOff_point = "Auto",
+          Survival_type = type,
+          ID = site_id
         )
-        cutoff_value <- res.cut$cutpoint$cutpoint
-        res.cat <- survminer::surv_categorize(res.cut)
-        res.cat$Expr <- factor(res.cat$Expr, levels = c("low", "high"))
-        formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
-        cox_fit <- survival::coxph(formula, data = res.cat)
-        cox_sum <- summary(cox_fit)
-
-        list(
-          type = type,
-          hazard_ratio = cox_sum$coefficients[, "exp(coef)"],
-          p_value = cox_sum$coefficients[, "Pr(>|z|)"],
-          ci_lower = cox_sum$conf.int[, "lower .95"],
-          ci_upper = cox_sum$conf.int[, "upper .95"],
-          n_high = sum(res.cat$Expr == "high", na.rm = TRUE),
-          n_low = sum(res.cat$Expr == "low", na.rm = TRUE),
-          cutoff_value = cutoff_value
-        )
+        stats <- if (is.list(km_result)) km_result$statistics else NULL
+        if (is.null(stats)) return(NULL)
+        c(list(type = type), stats)
       }, error = function(e) NULL)
     }))
     if (length(survival_entries) > 0) result$survival <- unname(survival_entries)
@@ -435,51 +416,15 @@ function(gene = "", type = "OS", cutoff = "Auto") {
     result <- list(gene = gene, phosphosite = site_id, type = type, cutoff = cutoff)
 
     if (!is.null(p)) {
-      # ggsurvplot returns a list with $plot
-      plot_obj <- if (is.list(p) && !is.null(p$plot)) p$plot else p
-      result$plot <- plot_to_base64(plot_obj, width = 1000, height = 800)
+      # Pho_KM_function now returns list(plot, statistics)
+      km_plot <- if (is.list(p) && !is.null(p$plot)) p$plot else p
+      km_stats <- if (is.list(p)) p$statistics else NULL
 
-      # Extract survival statistics
-      tryCatch({
-        clinical <- Phosphoproteomics_list[[1]]$Clinical
-        clinical$Expr <- as.numeric(Phosphoproteomics_list[[1]]$Matrix[site_id, ])
-
-        time_col  <- ifelse(type == "OS", "OS.time", "PFS.time")
-        event_col <- ifelse(type == "OS", "OS", "PFS")
-
-        res.cut <- survminer::surv_cutpoint(clinical,
-          time = time_col, event = event_col, variables = "Expr"
-        )
-        cutoff_value <- if (cutoff == "Median") {
-          median(clinical$Expr, na.rm = TRUE)
-        } else if (cutoff == "Mean") {
-          mean(clinical$Expr, na.rm = TRUE)
-        } else {
-          res.cut$cutpoint$cutpoint
-        }
-        result$cutoff_value <- cutoff_value
-
-        res.cat <- survminer::surv_categorize(res.cut)
-        if (cutoff != "Auto") {
-          res.cat$Expr <- ifelse(clinical$Expr > cutoff_value, "high", "low")
-        }
-        res.cat$Expr <- factor(res.cat$Expr, levels = c("low", "high"))
-
-        formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
-        cox_fit <- survival::coxph(formula, data = res.cat)
-        cox_sum <- summary(cox_fit)
-
-        result$statistics <- list(
-          hazard_ratio = cox_sum$coefficients[, "exp(coef)"],
-          p_value      = cox_sum$coefficients[, "Pr(>|z|)"],
-          ci_lower     = cox_sum$conf.int[, "lower .95"],
-          ci_upper     = cox_sum$conf.int[, "upper .95"],
-          n_high       = sum(res.cat$Expr == "high", na.rm = TRUE),
-          n_low        = sum(res.cat$Expr == "low", na.rm = TRUE)
-        )
-      }, error = function(e) {
-        cat("⚠️ Phospho stats extraction error:", conditionMessage(e), "\n")
-      })
+      result$plot <- plot_to_base64(km_plot, width = 1000, height = 800)
+      if (!is.null(km_stats)) {
+        result$cutoff_value <- km_stats$cutoff_value
+        result$statistics <- km_stats
+      }
     }
 
     result
