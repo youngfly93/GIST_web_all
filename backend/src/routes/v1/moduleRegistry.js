@@ -34,7 +34,12 @@ export const moduleRegistry = {
     supports_jobs: false,
     supports_images: true,
     supports_survival: true,
-    supports_drug_response: true
+    supports_drug_response: true,
+    bridge: {
+      kind: 'plumber',
+      env_var: 'PLUMBER_PROTEOMICS_BASE_URL',
+      default_base_url: 'http://127.0.0.1:4966'
+    }
   },
   phosphoproteomics: {
     module: 'phosphoproteomics',
@@ -43,7 +48,12 @@ export const moduleRegistry = {
     supports_jobs: false,
     supports_images: true,
     supports_survival: true,
-    supports_drug_response: false
+    supports_drug_response: false,
+    bridge: {
+      kind: 'plumber',
+      env_var: 'PLUMBER_PHOSPHO_BASE_URL',
+      default_base_url: 'http://127.0.0.1:4968'
+    }
   },
   singlecell: {
     module: 'singlecell',

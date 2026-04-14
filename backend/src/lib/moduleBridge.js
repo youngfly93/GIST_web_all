@@ -46,6 +46,45 @@ export function getBridgeSpec(moduleName) {
     };
   }
 
+  if (moduleName === 'proteomics') {
+    return {
+      summary: { method: 'post', path: '/summary', buildParams: ({ feature }) => ({ gene: feature }) },
+      featureCheck: {
+        method: 'post',
+        path: '/proteins/check',
+        buildParams: ({ features }) => ({ gene_symbols: features.join(',') })
+      },
+      clinical: { method: 'post', path: '/analyze/batch', buildParams: ({ feature }) => ({ gene: feature }) },
+      survival: {
+        method: 'post',
+        path: '/analyze/survival',
+        buildParams: ({ feature, type = 'OS', cutoff = 'Auto' }) => ({ gene: feature, type, cutoff })
+      },
+      drugResponse: {
+        method: 'post',
+        path: '/analyze/drug-resistance',
+        buildParams: ({ feature }) => ({ gene: feature })
+      }
+    };
+  }
+
+  if (moduleName === 'phosphoproteomics') {
+    return {
+      summary: { method: 'post', path: '/summary', buildParams: ({ feature }) => ({ gene: feature }) },
+      featureCheck: {
+        method: 'post',
+        path: '/proteins/check',
+        buildParams: ({ features }) => ({ gene_symbols: features.join(',') })
+      },
+      clinical: { method: 'post', path: '/analyze/batch', buildParams: ({ feature }) => ({ gene: feature }) },
+      survival: {
+        method: 'post',
+        path: '/analyze/survival',
+        buildParams: ({ feature, type = 'OS', cutoff = 'Auto' }) => ({ gene: feature, type, cutoff })
+      }
+    };
+  }
+
   return null;
 }
 
