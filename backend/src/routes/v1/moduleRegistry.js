@@ -62,7 +62,12 @@ export const moduleRegistry = {
     supports_jobs: true,
     supports_images: true,
     supports_survival: false,
-    supports_drug_response: false
+    supports_drug_response: false,
+    bridge: {
+      kind: 'plumber',
+      env_var: 'PLUMBER_SINGLECELL_BASE_URL',
+      default_base_url: 'http://127.0.0.1:4972'
+    }
   }
 };
 

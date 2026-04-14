@@ -85,6 +85,31 @@ export function getBridgeSpec(moduleName) {
     };
   }
 
+  if (moduleName === 'singlecell') {
+    return {
+      summary: { method: 'post', path: '/summary', buildParams: ({ feature }) => ({ gene: feature }) },
+      featureCheck: {
+        method: 'post',
+        path: '/proteins/check',
+        buildParams: ({ features }) => ({ gene_symbols: features.join(',') })
+      },
+      clinical: { method: 'post', path: '/analyze/batch', buildParams: ({ feature }) => ({ gene: feature }) },
+      jobsCreate: {
+        method: 'post',
+        path: '/jobs',
+        buildParams: ({ feature, mode = 'full', analysis = null }) => ({ gene: feature, mode, analysis })
+      },
+      jobsStatus: {
+        method: 'get',
+        path: ({ jobId }) => `/jobs/${jobId}`
+      },
+      jobsResult: {
+        method: 'get',
+        path: ({ jobId }) => `/jobs/${jobId}/result`
+      }
+    };
+  }
+
   return null;
 }
 
@@ -103,8 +128,8 @@ export async function proxyModuleOperation(moduleConfig, moduleName, operation, 
   const upstream = await callPlumber({
     moduleConfig,
     method: spec.method,
-    path: spec.path,
-    params: spec.buildParams(payload)
+    path: typeof spec.path === 'function' ? spec.path(payload) : spec.path,
+    params: spec.buildParams ? spec.buildParams(payload) : undefined
   });
 
   return {

@@ -53,10 +53,14 @@ export async function callPlumber({
     return response.data;
   } catch (error) {
     if (error.response) {
+      const upstream = error.response.data;
+      const upstreamMessage = upstream && typeof upstream === 'object'
+        ? upstream.error || upstream.message || `Upstream ${moduleConfig.module} plumber returned ${error.response.status}`
+        : `Upstream ${moduleConfig.module} plumber returned ${error.response.status}`;
       throw new ApiError({
         code: 'ANALYSIS_FAILED',
-        message: `Upstream ${moduleConfig.module} plumber returned ${error.response.status}`,
-        status: 502
+        message: upstreamMessage,
+        status: error.response.status || 502
       });
     }
 

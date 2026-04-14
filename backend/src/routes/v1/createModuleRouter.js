@@ -201,33 +201,69 @@ export function createModuleRouter(moduleName) {
   });
 
   if (config.supports_jobs) {
-    router.post('/jobs', (_req, res) => {
-      return sendError(res, {
-        module: moduleName,
-        endpoint: 'jobs',
-        code: 'NOT_IMPLEMENTED',
-        message: 'Unified single-cell job submission is not implemented yet',
-        status: 501
+    router.post('/jobs', (req, res) => {
+      return withApiHandling(res, 'jobs', async () => {
+        const feature = requireFeature(req.body);
+        if (!hasBridge()) {
+          throw notImplemented('Unified single-cell job submission is not implemented yet');
+        }
+
+        const { upstream, upstreamError } = await proxyModuleOperation(config, moduleName, 'jobsCreate', {
+          feature,
+          mode: req.body?.mode || 'full',
+          analysis: req.body?.analysis ?? null
+        });
+        if (upstreamError) {
+          throw new ApiError({
+            code: 'ANALYSIS_FAILED',
+            message: upstreamError,
+            status: 422
+          });
+        }
+
+        return upstream;
       });
     });
 
     router.get('/jobs/:jobId', (req, res) => {
-      return sendError(res, {
-        module: moduleName,
-        endpoint: `jobs/${req.params.jobId}`,
-        code: 'NOT_IMPLEMENTED',
-        message: 'Unified single-cell job status is not implemented yet',
-        status: 501
+      return withApiHandling(res, `jobs/${req.params.jobId}`, async () => {
+        if (!hasBridge()) {
+          throw notImplemented('Unified single-cell job status is not implemented yet');
+        }
+
+        const { upstream, upstreamError } = await proxyModuleOperation(config, moduleName, 'jobsStatus', {
+          jobId: req.params.jobId
+        });
+        if (upstreamError) {
+          throw new ApiError({
+            code: 'ANALYSIS_FAILED',
+            message: upstreamError,
+            status: 422
+          });
+        }
+
+        return upstream;
       });
     });
 
     router.get('/jobs/:jobId/result', (req, res) => {
-      return sendError(res, {
-        module: moduleName,
-        endpoint: `jobs/${req.params.jobId}/result`,
-        code: 'NOT_IMPLEMENTED',
-        message: 'Unified single-cell job result is not implemented yet',
-        status: 501
+      return withApiHandling(res, `jobs/${req.params.jobId}/result`, async () => {
+        if (!hasBridge()) {
+          throw notImplemented('Unified single-cell job result is not implemented yet');
+        }
+
+        const { upstream, upstreamError } = await proxyModuleOperation(config, moduleName, 'jobsResult', {
+          jobId: req.params.jobId
+        });
+        if (upstreamError) {
+          throw new ApiError({
+            code: 'ANALYSIS_FAILED',
+            message: upstreamError,
+            status: 422
+          });
+        }
+
+        return upstream;
       });
     });
   }
