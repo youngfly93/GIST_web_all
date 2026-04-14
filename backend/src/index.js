@@ -7,6 +7,7 @@ import chatRouter from './routes/chat.js';
 import geneRouter from './routes/gene.js';
 import proxyRouter from './routes/proxy.js';
 import ncRNARouter from './routes/ncrna.js';
+import v1Router from './routes/v1/index.js';
 
 // ES Module 中获取 __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +28,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/gene', geneRouter);
 app.use('/api/proxy', proxyRouter);
 app.use('/api/ncrna', ncRNARouter);
+app.use('/api/v1', v1Router);
 
 const PORT = process.env.PORT || 8000;
 const HOST = '0.0.0.0'; // Listen on all network interfaces
