@@ -86,17 +86,67 @@ setwd(old_wd)
 cat("✅ Analysis functions loaded\n")
 
 # ---------------------------------------------------------------------------
-# Constants — dataset index mappings
-# ---------------------------------------------------------------------------
-
-miRNA_ID   <- c(15, 16, 17, 18, 22, 28)
-circRNA_ID <- c(19, 21)
-lncRNA_ID  <- c(20, 25)
-ALL_NONCODING_ID <- c(miRNA_ID, circRNA_ID, lncRNA_ID)
-
-# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
+dataset_class <- function(ds) {
+  tolower(trimws(as.character(ds$Class %||% "")))
+}
+
+dataset_id <- function(ds) {
+  as.character(ds$ID %||% "")
+}
+
+find_dataset_indices <- function(ids = NULL, classes = NULL) {
+  hits <- seq_along(dbGIST_matrix)
+
+  if (!is.null(ids)) {
+    id_set <- unique(ids)
+    hits <- hits[vapply(hits, function(idx) dataset_id(dbGIST_matrix[[idx]]) %in% id_set, logical(1))]
+    ord <- match(vapply(hits, function(idx) dataset_id(dbGIST_matrix[[idx]]), character(1)), id_set)
+    hits <- hits[order(ord, na.last = TRUE)]
+  }
+
+  if (!is.null(classes)) {
+    class_set <- tolower(unique(classes))
+    hits <- hits[vapply(hits, function(idx) dataset_class(dbGIST_matrix[[idx]]) %in% class_set, logical(1))]
+  }
+
+  hits
+}
+
+subset_datasets <- function(ids = NULL, classes = NULL) {
+  dbGIST_matrix[find_dataset_indices(ids = ids, classes = classes)]
+}
+
+NONCODING_DATASET_IDS <- list(
+  miRNA = c("GSE31741", "GSE36087", "GSE45901", "GSE63159", "GSE156715", "GSE89051"),
+  circRNA = c("GSE131481_circRNA", "GSE147303"),
+  lncRNA = c("GSE131481_LncRNA", "GSE155800")
+)
+
+NONCODING_FUNCTION_DATASETS <- list(
+  TvsN = c("GSE89051"),
+  Risk = c("GSE31741", "GSE89051"),
+  Age = c("GSE31741", "GSE89051"),
+  Site = c("GSE31741", "GSE36087"),
+  Gender = c("GSE31741", "GSE89051"),
+  Mitotic = c("GSE36087"),
+  Tumor_size = c("GSE36087"),
+  IM_Treat = c("GSE63159"),
+  Relapse = c("GSE156715"),
+  Drug = c("GSE45901"),
+  circRNA_TvsN = c("GSE131481_circRNA", "GSE147303")
+)
+
+miRNA_ID <- find_dataset_indices(ids = NONCODING_DATASET_IDS$miRNA, classes = "mirna")
+circRNA_ID <- find_dataset_indices(ids = NONCODING_DATASET_IDS$circRNA, classes = "circrna")
+lncRNA_ID <- find_dataset_indices(ids = NONCODING_DATASET_IDS$lncRNA, classes = "lncrna")
+ALL_NONCODING_ID <- c(miRNA_ID, circRNA_ID, lncRNA_ID)
 
 plot_to_base64 <- function(p, width = 800, height = 600, res = 150) {
   if (is.null(p)) return(NULL)
@@ -174,6 +224,40 @@ CIRCRNA_CLINICAL_FUNCTIONS <- list(
   TvsN = "dbGIST_circRNA_boxplot_TvsN"
 )
 
+LNCRNA_CLINICAL_FUNCTIONS <- list()
+
+noncoding_function_map <- function(rna_type) {
+  switch(rna_type,
+    miRNA = MIRNA_CLINICAL_FUNCTIONS,
+    circRNA = CIRCRNA_CLINICAL_FUNCTIONS,
+    lncRNA = LNCRNA_CLINICAL_FUNCTIONS,
+    list()
+  )
+}
+
+invoke_noncoding_fn <- function(fn_name, id, variable, rna_type) {
+  fn <- tryCatch(get(fn_name, envir = .GlobalEnv), error = function(e) NULL)
+  if (is.null(fn)) {
+    stop(paste0("Function ", fn_name, " not found"))
+  }
+
+  db_ids <- if (rna_type == "circRNA" && identical(variable, "TvsN")) {
+    NONCODING_FUNCTION_DATASETS$circRNA_TvsN
+  } else {
+    NONCODING_FUNCTION_DATASETS[[variable]]
+  }
+  db_arg <- if (!is.null(db_ids)) subset_datasets(ids = db_ids) else NULL
+
+  args <- list(ID = id)
+  if (!is.null(db_arg)) args$DB <- db_arg
+  do.call(fn, args)
+}
+
+drug_resistance_dataset_index <- function() {
+  idx <- find_dataset_indices(ids = NONCODING_FUNCTION_DATASETS$Drug, classes = "mirna")
+  if (length(idx) == 0) integer(0) else idx[1]
+}
+
 required_function_status <- function(function_names) {
   setNames(
     lapply(function_names, function(name) exists(name, envir = .GlobalEnv, inherits = FALSE)),
@@ -234,7 +318,8 @@ build_capabilities <- function() {
     latency_class = "medium",
     notes = c(
       "current_api_is_legacy_full_mode",
-      "requires_noncoding_identifier_not_protein_symbol"
+      "requires_noncoding_identifier_not_protein_symbol",
+      "lncrna_currently_supports_availability_only"
     )
   )
 }
@@ -257,39 +342,33 @@ build_summary <- function(gene = "") {
     return(result)
   }
 
-  fn_map <- switch(info$rna_type,
-    miRNA   = MIRNA_CLINICAL_FUNCTIONS,
-    circRNA = CIRCRNA_CLINICAL_FUNCTIONS,
-    lncRNA  = MIRNA_CLINICAL_FUNCTIONS,
-    MIRNA_CLINICAL_FUNCTIONS
-  )
+  fn_map <- noncoding_function_map(info$rna_type)
 
   clinical <- unname(lapply(names(fn_map), function(name) {
     fn_name <- fn_map[[name]]
-    fn <- tryCatch(get(fn_name, envir = .GlobalEnv), error = function(e) NULL)
 
     entry <- list(variable = name)
-    if (is.null(fn)) {
-      entry$error <- paste0("Function ", fn_name, " not found")
-    } else {
-      tryCatch({
-        p <- fn(ID = gene)
-        if (is.null(p)) {
-          entry$error <- paste0("No data for ", gene, " in ", name)
-        }
-      }, error = function(e) {
-        entry$error <<- conditionMessage(e)
-      })
-    }
+    tryCatch({
+      p <- invoke_noncoding_fn(fn_name, gene, name, info$rna_type)
+      if (is.null(p)) {
+        entry$error <- paste0("No data for ", gene, " in ", name)
+      }
+    }, error = function(e) {
+      entry$error <<- conditionMessage(e)
+    })
     entry
   }))
   if (length(clinical) > 0) result$clinical_associations <- clinical
 
   drug_resistance <- tryCatch({
-    ds <- dbGIST_matrix[[17]]
-    if (!(gene %in% rownames(ds$Matrix)) || !("Imatinib" %in% colnames(ds$Clinical))) {
+    ds_idx <- drug_resistance_dataset_index()
+    if (length(ds_idx) == 0) {
       NULL
     } else {
+      ds <- dbGIST_matrix[[ds_idx]]
+      if (!(gene %in% rownames(ds$Matrix)) || !("Imatinib" %in% colnames(ds$Clinical))) {
+        return(NULL)
+      }
       values <- as.numeric(ds$Matrix[gene, ])
       response <- ds$Clinical$Imatinib
       df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
@@ -385,33 +464,23 @@ function(gene = "") {
   rna_type <- detect_rna_type(gene)
 
   # Pick the right function map based on RNA type
-  fn_map <- switch(rna_type,
-    miRNA   = MIRNA_CLINICAL_FUNCTIONS,
-    circRNA = CIRCRNA_CLINICAL_FUNCTIONS,
-    lncRNA  = MIRNA_CLINICAL_FUNCTIONS,  # lncRNA uses same functions as miRNA
-    MIRNA_CLINICAL_FUNCTIONS
-  )
+  fn_map <- noncoding_function_map(rna_type)
 
   analyses <- list()
   for (name in names(fn_map)) {
     fn_name <- fn_map[[name]]
-    fn <- tryCatch(get(fn_name, envir = .GlobalEnv), error = function(e) NULL)
 
     entry <- list(variable = name)
-    if (is.null(fn)) {
-      entry$error <- paste0("Function ", fn_name, " not found")
-    } else {
-      tryCatch({
-        p <- fn(ID = gene)
-        if (!is.null(p)) {
-          entry$plot <- plot_to_base64(p)
-        } else {
-          entry$error <- paste0("No data for ", gene, " in ", name)
-        }
-      }, error = function(e) {
-        entry$error <<- conditionMessage(e)
-      })
-    }
+    tryCatch({
+      p <- invoke_noncoding_fn(fn_name, gene, name, rna_type)
+      if (!is.null(p)) {
+        entry$plot <- plot_to_base64(p)
+      } else {
+        entry$error <- paste0("No data for ", gene, " in ", name)
+      }
+    }, error = function(e) {
+      entry$error <<- conditionMessage(e)
+    })
     analyses[[name]] <- entry
   }
 
@@ -428,12 +497,16 @@ function(gene = "") {
   }
 
   tryCatch({
+    if (detect_rna_type(gene) != "miRNA") {
+      return(list(gene = gene, error = "Drug resistance analysis currently supports miRNA only"))
+    }
+
     fn <- tryCatch(get("dbGIST_miRNA_boxplot_roc_IM.Treat", envir = .GlobalEnv), error = function(e) NULL)
     if (is.null(fn)) {
       return(list(gene = gene, error = "dbGIST_miRNA_boxplot_roc_IM.Treat function not found"))
     }
 
-    p <- fn(ID = gene)
+    p <- fn(ID = gene, DB = subset_datasets(ids = NONCODING_FUNCTION_DATASETS$Drug, classes = "mirna"))
 
     result <- list(gene = gene)
 
@@ -442,7 +515,9 @@ function(gene = "") {
 
       # Try to extract AUC from dataset 17
       tryCatch({
-        ds <- dbGIST_matrix[[17]]
+        ds_idx <- drug_resistance_dataset_index()
+        if (length(ds_idx) > 0) {
+          ds <- dbGIST_matrix[[ds_idx]]
         if (gene %in% rownames(ds$Matrix) && "Imatinib" %in% colnames(ds$Clinical)) {
           values <- as.numeric(ds$Matrix[gene, ])
           response <- ds$Clinical$Imatinib
@@ -461,6 +536,7 @@ function(gene = "") {
             auc       = auc_val,
             n_samples = nrow(df)
           )
+        }
         }
       }, error = function(e) {
         cat("⚠️ Drug resistance stats error:", conditionMessage(e), "\n")

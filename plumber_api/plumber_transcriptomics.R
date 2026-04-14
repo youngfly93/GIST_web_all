@@ -60,6 +60,7 @@ if (!file.exists(rds_path)) {
 }
 cat("📦 Loading dbGIST_matrix_20250828.rds ...\n")
 dbGIST_matrix <- readRDS(rds_path)
+assign("dbGIST_matrix", dbGIST_matrix, envir = .GlobalEnv)
 cat("✅ Loaded", length(dbGIST_matrix), "datasets\n")
 
 # Source the analysis functions
@@ -105,14 +106,79 @@ setwd(old_wd)
 cat("✅ Analysis functions loaded\n")
 
 # ---------------------------------------------------------------------------
-# Constants — mRNA dataset indices
-# ---------------------------------------------------------------------------
-
-mRNA_ID <- 1:14
-
-# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+dataset_class <- function(ds) {
+  tolower(trimws(as.character(ds$Class %||% "")))
+}
+
+dataset_id <- function(ds) {
+  as.character(ds$ID %||% "")
+}
+
+`%||%` <- function(x, y) {
+  if (is.null(x)) y else x
+}
+
+find_dataset_indices <- function(ids = NULL, classes = NULL) {
+  hits <- seq_along(dbGIST_matrix)
+
+  if (!is.null(ids)) {
+    id_set <- unique(ids)
+    hits <- hits[vapply(hits, function(idx) dataset_id(dbGIST_matrix[[idx]]) %in% id_set, logical(1))]
+    ord <- match(vapply(hits, function(idx) dataset_id(dbGIST_matrix[[idx]]), character(1)), id_set)
+    hits <- hits[order(ord, na.last = TRUE)]
+  }
+
+  if (!is.null(classes)) {
+    class_set <- tolower(unique(classes))
+    hits <- hits[vapply(hits, function(idx) dataset_class(dbGIST_matrix[[idx]]) %in% class_set, logical(1))]
+  }
+
+  hits
+}
+
+subset_datasets <- function(ids = NULL, classes = NULL) {
+  dbGIST_matrix[find_dataset_indices(ids = ids, classes = classes)]
+}
+
+subset_indices <- function(ids = NULL, classes = NULL) {
+  find_dataset_indices(ids = ids, classes = classes)
+}
+
+TRANSCRIPTOME_DATASET_IDS <- list(
+  Age = c("GSE8167", "GSE20708", "GSE31802", "GSE47911", "GSE136755", "GSE75479"),
+  Gender = c("GSE8167", "GSE17743", "GSE20708", "GSE31802", "GSE47911", "GSE136755", "GSE75479"),
+  Risk = c("GSE31802", "GSE47911", "GSE136755"),
+  Site = c("GSE8167", "GSE31802", "GSE132542", "GSE136755", "GSE21315", "GSE75479"),
+  Mutation_ID = c("GSE14755", "GSE17743", "GSE20708", "GSE47911", "GSE136755"),
+  Stage = c("GSE17743", "GSE136755"),
+  Tumor_size = c("GSE8167", "GSE17743"),
+  Grade = c("GSE17743", "GSE136755"),
+  Metastatic_Primary = c("GSE21315", "GSE136755"),
+  Drug = c("GSE132542", "GSE15966")
+)
+
+mRNA_ID <- subset_indices(classes = "mRNA")
+
+invoke_transcriptome_fn <- function(fn_name, gene, variable = NULL) {
+  fn <- tryCatch(get(fn_name, envir = .GlobalEnv), error = function(e) NULL)
+  if (is.null(fn)) {
+    stop(paste0("Function ", fn_name, " not found"))
+  }
+
+  db_ids <- if (!is.null(variable)) TRANSCRIPTOME_DATASET_IDS[[variable]] else NULL
+  db_arg <- if (!is.null(db_ids)) subset_datasets(ids = db_ids, classes = "mRNA") else NULL
+
+  args <- list(ID = gene)
+  if (!is.null(db_arg)) args$DB <- db_arg
+  do.call(fn, args)
+}
+
+drug_resistance_indices <- function() {
+  subset_indices(ids = TRANSCRIPTOME_DATASET_IDS$Drug, classes = "mRNA")
+}
 
 plot_to_base64 <- function(p, width = 800, height = 600, res = 150) {
   if (is.null(p)) return(NULL)
@@ -220,7 +286,7 @@ build_capabilities <- function() {
     latency_class = "medium",
     notes = c(
       "current_api_is_legacy_full_mode",
-      "uses_mrna_dataset_indices_1_to_14"
+      "uses_dynamic_mrna_dataset_resolution"
     )
   )
 }
@@ -244,21 +310,16 @@ build_summary <- function(gene = "") {
 
   clinical <- unname(lapply(names(CLINICAL_FUNCTIONS), function(name) {
     fn_name <- CLINICAL_FUNCTIONS[[name]]
-    fn <- tryCatch(get(fn_name, envir = .GlobalEnv), error = function(e) NULL)
 
     entry <- list(variable = name)
-    if (is.null(fn)) {
-      entry$error <- paste0("Function ", fn_name, " not found")
-    } else {
-      tryCatch({
-        p <- fn(ID = gene)
-        if (is.null(p)) {
-          entry$error <- paste0("No data for ", gene, " in ", name)
-        }
-      }, error = function(e) {
-        entry$error <<- conditionMessage(e)
-      })
-    }
+    tryCatch({
+      p <- invoke_transcriptome_fn(fn_name, gene, variable = name)
+      if (is.null(p)) {
+        entry$error <- paste0("No data for ", gene, " in ", name)
+      }
+    }, error = function(e) {
+      entry$error <<- conditionMessage(e)
+    })
     entry
   }))
   if (length(clinical) > 0) result$clinical_associations <- clinical
@@ -318,9 +379,8 @@ build_summary <- function(gene = "") {
   if (length(survival_entries) > 0) result$survival <- unname(survival_entries)
 
   drug_resistance <- tryCatch({
-    IM_ID <- c(13, 3)
     found <- NULL
-    for (idx in IM_ID) {
+    for (idx in drug_resistance_indices()) {
       ds <- dbGIST_matrix[[idx]]
       if (!(gene %in% rownames(ds$Matrix)) || !("Imatinib" %in% colnames(ds$Clinical))) next
 
@@ -418,23 +478,18 @@ function(gene = "") {
   analyses <- list()
   for (name in names(CLINICAL_FUNCTIONS)) {
     fn_name <- CLINICAL_FUNCTIONS[[name]]
-    fn <- tryCatch(get(fn_name, envir = .GlobalEnv), error = function(e) NULL)
 
     entry <- list(variable = name)
-    if (is.null(fn)) {
-      entry$error <- paste0("Function ", fn_name, " not found")
-    } else {
-      tryCatch({
-        p <- fn(ID = gene)
-        if (!is.null(p)) {
-          entry$plot <- plot_to_base64(p)
-        } else {
-          entry$error <- paste0("No data for ", gene, " in ", name)
-        }
-      }, error = function(e) {
-        entry$error <<- conditionMessage(e)
-      })
-    }
+    tryCatch({
+      p <- invoke_transcriptome_fn(fn_name, gene, variable = name)
+      if (!is.null(p)) {
+        entry$plot <- plot_to_base64(p)
+      } else {
+        entry$error <- paste0("No data for ", gene, " in ", name)
+      }
+    }, error = function(e) {
+      entry$error <<- conditionMessage(e)
+    })
     analyses[[name]] <- entry
   }
 
@@ -557,7 +612,7 @@ function(gene = "") {
       return(list(gene = gene, error = "dbGIST_boxplot_Drug function not found"))
     }
 
-    p <- fn(ID = gene)
+    p <- fn(ID = gene, DB = subset_datasets(ids = TRANSCRIPTOME_DATASET_IDS$Drug, classes = "mRNA"))
 
     result <- list(gene = gene)
 
@@ -574,10 +629,9 @@ function(gene = "") {
 
       # Try to extract AUC from the drug-resistance datasets
       tryCatch({
-        IM_ID <- c(13, 3)
         n_total <- 0
         auc_val <- NULL
-        for (idx in IM_ID) {
+        for (idx in drug_resistance_indices()) {
           ds <- dbGIST_matrix[[idx]]
           if (gene %in% rownames(ds$Matrix) && "Imatinib" %in% colnames(ds$Clinical)) {
             values <- as.numeric(ds$Matrix[gene, ])
