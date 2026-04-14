@@ -181,5 +181,72 @@ class DbGistClient:
     def noncoding_drug_response(self, feature: str) -> Dict[str, Any]:
         return self._module_post("noncoding", "analysis/drug-response", {"feature": feature})
 
+    # Proteomics
+    def proteomics_health(self) -> Dict[str, Any]:
+        return self.module_health("proteomics")
+
+    def proteomics_ready(self) -> Dict[str, Any]:
+        return self.module_ready("proteomics")
+
+    def proteomics_capabilities(self) -> Dict[str, Any]:
+        return self.module_capabilities("proteomics")
+
+    def proteomics_summary(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("proteomics", "summary", {"feature": feature})
+
+    def proteomics_features_check(self, features: Iterable[str]) -> Dict[str, Any]:
+        return self._module_post(
+            "proteomics",
+            "features/check",
+            {"features": self._normalize_features(features)},
+        )
+
+    def proteomics_clinical(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("proteomics", "analysis/clinical", {"feature": feature})
+
+    def proteomics_survival(
+        self, feature: str, survival_type: str = "OS", cutoff: str = "Auto"
+    ) -> Dict[str, Any]:
+        return self._module_post(
+            "proteomics",
+            "analysis/survival",
+            {"feature": feature, "type": survival_type, "cutoff": cutoff},
+        )
+
+    def proteomics_drug_response(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("proteomics", "analysis/drug-response", {"feature": feature})
+
+    # Phosphoproteomics
+    def phosphoproteomics_health(self) -> Dict[str, Any]:
+        return self.module_health("phosphoproteomics")
+
+    def phosphoproteomics_ready(self) -> Dict[str, Any]:
+        return self.module_ready("phosphoproteomics")
+
+    def phosphoproteomics_capabilities(self) -> Dict[str, Any]:
+        return self.module_capabilities("phosphoproteomics")
+
+    def phosphoproteomics_summary(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("phosphoproteomics", "summary", {"feature": feature})
+
+    def phosphoproteomics_features_check(self, features: Iterable[str]) -> Dict[str, Any]:
+        return self._module_post(
+            "phosphoproteomics",
+            "features/check",
+            {"features": self._normalize_features(features)},
+        )
+
+    def phosphoproteomics_clinical(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("phosphoproteomics", "analysis/clinical", {"feature": feature})
+
+    def phosphoproteomics_survival(
+        self, feature: str, survival_type: str = "OS", cutoff: str = "Auto"
+    ) -> Dict[str, Any]:
+        return self._module_post(
+            "phosphoproteomics",
+            "analysis/survival",
+            {"feature": feature, "type": survival_type, "cutoff": cutoff},
+        )
+
 
 __all__ = ["DbGistClient", "DbGistApiError"]

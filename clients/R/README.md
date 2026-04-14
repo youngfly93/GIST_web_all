@@ -6,6 +6,8 @@ Current scope:
 
 - transcriptomics
 - noncoding
+- proteomics
+- phosphoproteomics
 
 The client is a single sourceable script and currently depends on:
 
@@ -40,6 +42,15 @@ client$noncoding_summary("hsa-miR-21-5p")
 - `noncoding_features_check(features)`
 - `noncoding_clinical(feature)`
 - `noncoding_drug_response(feature)`
+- `proteomics_summary(feature)`
+- `proteomics_features_check(features)`
+- `proteomics_clinical(feature)`
+- `proteomics_survival(feature, survival_type = "OS", cutoff = "Auto")`
+- `proteomics_drug_response(feature)`
+- `phosphoproteomics_summary(feature)`
+- `phosphoproteomics_features_check(features)`
+- `phosphoproteomics_clinical(feature)`
+- `phosphoproteomics_survival(feature, survival_type = "OS", cutoff = "Auto")`
 
 ## Error handling
 

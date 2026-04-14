@@ -156,6 +156,49 @@ dbgist_client <- function(base_url = "http://127.0.0.1:8000", timeout = 120) {
     },
     noncoding_drug_response = function(feature) {
       module_post("noncoding", "analysis/drug-response", list(feature = feature))
+    },
+
+    proteomics_health = function() module_get("proteomics", "health"),
+    proteomics_ready = function() module_get("proteomics", "ready"),
+    proteomics_capabilities = function() module_get("proteomics", "capabilities"),
+    proteomics_summary = function(feature) {
+      module_post("proteomics", "summary", list(feature = feature))
+    },
+    proteomics_features_check = function(features) {
+      module_post("proteomics", "features/check", list(features = normalize_features(features)))
+    },
+    proteomics_clinical = function(feature) {
+      module_post("proteomics", "analysis/clinical", list(feature = feature))
+    },
+    proteomics_survival = function(feature, survival_type = "OS", cutoff = "Auto") {
+      module_post(
+        "proteomics",
+        "analysis/survival",
+        list(feature = feature, type = survival_type, cutoff = cutoff)
+      )
+    },
+    proteomics_drug_response = function(feature) {
+      module_post("proteomics", "analysis/drug-response", list(feature = feature))
+    },
+
+    phosphoproteomics_health = function() module_get("phosphoproteomics", "health"),
+    phosphoproteomics_ready = function() module_get("phosphoproteomics", "ready"),
+    phosphoproteomics_capabilities = function() module_get("phosphoproteomics", "capabilities"),
+    phosphoproteomics_summary = function(feature) {
+      module_post("phosphoproteomics", "summary", list(feature = feature))
+    },
+    phosphoproteomics_features_check = function(features) {
+      module_post("phosphoproteomics", "features/check", list(features = normalize_features(features)))
+    },
+    phosphoproteomics_clinical = function(feature) {
+      module_post("phosphoproteomics", "analysis/clinical", list(feature = feature))
+    },
+    phosphoproteomics_survival = function(feature, survival_type = "OS", cutoff = "Auto") {
+      module_post(
+        "phosphoproteomics",
+        "analysis/survival",
+        list(feature = feature, type = survival_type, cutoff = cutoff)
+      )
     }
   )
 }
