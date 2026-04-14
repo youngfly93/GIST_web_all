@@ -199,6 +199,30 @@ dbgist_client <- function(base_url = "http://127.0.0.1:8000", timeout = 120) {
         "analysis/survival",
         list(feature = feature, type = survival_type, cutoff = cutoff)
       )
+    },
+
+    singlecell_health = function() module_get("singlecell", "health"),
+    singlecell_ready = function() module_get("singlecell", "ready"),
+    singlecell_capabilities = function() module_get("singlecell", "capabilities"),
+    singlecell_summary = function(feature) {
+      module_post("singlecell", "summary", list(feature = feature))
+    },
+    singlecell_features_check = function(features) {
+      module_post("singlecell", "features/check", list(features = normalize_features(features)))
+    },
+    singlecell_clinical = function(feature) {
+      module_post("singlecell", "analysis/clinical", list(feature = feature))
+    },
+    singlecell_submit_job = function(feature, mode = "full", analysis = NULL) {
+      payload <- list(feature = feature, mode = mode)
+      if (!is.null(analysis)) payload$analysis <- analysis
+      module_post("singlecell", "jobs", payload)
+    },
+    singlecell_job_status = function(job_id) {
+      module_get("singlecell", sprintf("jobs/%s", job_id))
+    },
+    singlecell_job_result = function(job_id) {
+      module_get("singlecell", sprintf("jobs/%s/result", job_id))
     }
   )
 }

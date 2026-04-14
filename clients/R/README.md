@@ -8,6 +8,7 @@ Current scope:
 - noncoding
 - proteomics
 - phosphoproteomics
+- singlecell
 
 The client is a single sourceable script and currently depends on:
 
@@ -51,6 +52,12 @@ client$noncoding_summary("hsa-miR-21-5p")
 - `phosphoproteomics_features_check(features)`
 - `phosphoproteomics_clinical(feature)`
 - `phosphoproteomics_survival(feature, survival_type = "OS", cutoff = "Auto")`
+- `singlecell_summary(feature)`
+- `singlecell_features_check(features)`
+- `singlecell_clinical(feature)`
+- `singlecell_submit_job(feature, mode = "full", analysis = NULL)`
+- `singlecell_job_status(job_id)`
+- `singlecell_job_result(job_id)`
 
 ## Error handling
 

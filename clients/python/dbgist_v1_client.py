@@ -248,5 +248,42 @@ class DbGistClient:
             {"feature": feature, "type": survival_type, "cutoff": cutoff},
         )
 
+    # Singlecell
+    def singlecell_health(self) -> Dict[str, Any]:
+        return self.module_health("singlecell")
+
+    def singlecell_ready(self) -> Dict[str, Any]:
+        return self.module_ready("singlecell")
+
+    def singlecell_capabilities(self) -> Dict[str, Any]:
+        return self.module_capabilities("singlecell")
+
+    def singlecell_summary(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("singlecell", "summary", {"feature": feature})
+
+    def singlecell_features_check(self, features: Iterable[str]) -> Dict[str, Any]:
+        return self._module_post(
+            "singlecell",
+            "features/check",
+            {"features": self._normalize_features(features)},
+        )
+
+    def singlecell_clinical(self, feature: str) -> Dict[str, Any]:
+        return self._module_post("singlecell", "analysis/clinical", {"feature": feature})
+
+    def singlecell_submit_job(
+        self, feature: str, mode: str = "full", analysis: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {"feature": feature, "mode": mode}
+        if analysis is not None:
+            payload["analysis"] = analysis
+        return self._module_post("singlecell", "jobs", payload)
+
+    def singlecell_job_status(self, job_id: str) -> Dict[str, Any]:
+        return self._module_get("singlecell", f"jobs/{job_id}")
+
+    def singlecell_job_result(self, job_id: str) -> Dict[str, Any]:
+        return self._module_get("singlecell", f"jobs/{job_id}/result")
+
 
 __all__ = ["DbGistClient", "DbGistApiError"]
