@@ -209,6 +209,54 @@ interface MiniChatProps {
   height?: string;
 }
 
+const assistantMarkdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p style={{ margin: '0.25rem 0', lineHeight: 1.45 }}>{children}</p>
+  ),
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 style={{ margin: '0.3rem 0', fontSize: '0.95rem', fontWeight: 700 }}>{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 style={{ margin: '0.3rem 0', fontSize: '0.92rem', fontWeight: 700 }}>{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 style={{ margin: '0.25rem 0', fontSize: '0.9rem', fontWeight: 600 }}>{children}</h3>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul style={{ margin: '0.25rem 0', paddingLeft: '1.1rem' }}>{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol style={{ margin: '0.25rem 0', paddingLeft: '1.1rem' }}>{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li style={{ margin: '0.12rem 0', lineHeight: 1.4 }}>{children}</li>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code style={{
+      backgroundColor: 'rgba(15, 23, 42, 0.08)',
+      padding: '0.08rem 0.25rem',
+      borderRadius: '0.2rem',
+      fontSize: '0.82rem'
+    }}>
+      {children}
+    </code>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre style={{
+      margin: '0.35rem 0',
+      padding: '0.55rem',
+      backgroundColor: 'rgba(15, 23, 42, 0.06)',
+      borderRadius: '0.35rem',
+      overflowX: 'auto'
+    }}>
+      {children}
+    </pre>
+  )
+};
+
+const normalizeAssistantContent = (content: string) =>
+  content.replace(/\r\n/g, '\n').replace(/\u0000/g, '').replace(/\n{3,}/g, '\n\n');
+
 const MiniChat: React.FC<MiniChatProps> = ({
   placeholder = "Enter your question, AI assistant will answer...",
   height = "400px"
@@ -219,6 +267,52 @@ const MiniChat: React.FC<MiniChatProps> = ({
   const [currentActivity, setCurrentActivity] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const updateAssistantMessage = (
+    messageIndex: number,
+    patch: Partial<Message>
+  ) => {
+    setMessages(prev => {
+      const newMessages = [...prev];
+      if (messageIndex >= 0 && messageIndex < newMessages.length) {
+        newMessages[messageIndex] = {
+          ...newMessages[messageIndex],
+          role: 'assistant',
+          ...patch
+        };
+      }
+      return newMessages;
+    });
+  };
+
+  const sendNonStreamingFallback = async (
+    currentInput: string,
+    messageIndex: number,
+    activities: AgentActivity[]
+  ) => {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: currentInput, stream: false }),
+    });
+
+    const data = await response.json().catch(() => ({} as Record<string, unknown>));
+
+    if (!response.ok) {
+      const fallbackMessage =
+        typeof data.error === 'string'
+          ? data.error
+          : `HTTP error! status: ${response.status}`;
+      throw new Error(fallbackMessage);
+    }
+
+    updateAssistantMessage(messageIndex, {
+      content: typeof data.reply === 'string' ? data.reply : '',
+      image: typeof data.image === 'string' ? data.image : undefined,
+      activities: [...activities],
+      isStreaming: false
+    });
+  };
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -251,10 +345,23 @@ const MiniChat: React.FC<MiniChatProps> = ({
       }
 
       const reader = response.body?.getReader();
+      const contentType = response.headers.get('content-type') || '';
       const decoder = new TextDecoder();
 
       if (!reader) {
         throw new Error('No response body');
+      }
+
+      if (!contentType.includes('text/event-stream')) {
+        let rawContent = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          rawContent += decoder.decode(value, { stream: true });
+          onEvent({ type: 'text', data: { content: rawContent } });
+        }
+        onDone();
+        return;
       }
 
       let buffer = '';
@@ -389,57 +496,49 @@ const MiniChat: React.FC<MiniChatProps> = ({
         }
 
         // 更新消息内容
-        setMessages(prev => {
-          const newMessages = [...prev];
-          if (messageIndex >= 0 && messageIndex < newMessages.length) {
-            newMessages[messageIndex] = {
-              role: 'assistant',
-              content: currentContent,
-              image: currentImage,
-              activities: [...activities],
-              isStreaming: true
-            };
-          }
-          return newMessages;
+        updateAssistantMessage(messageIndex, {
+          content: currentContent,
+          image: currentImage,
+          activities: [...activities],
+          isStreaming: true
         });
       },
       // onDone
       () => {
         setIsLoading(false);
         setCurrentActivity('');
-        setMessages(prev => {
-          const newMessages = [...prev];
-          if (messageIndex >= 0 && messageIndex < newMessages.length) {
-            newMessages[messageIndex] = {
-              ...newMessages[messageIndex],
-              isStreaming: false,
-              activities: [...activities]
-            };
-          }
-          return newMessages;
+        updateAssistantMessage(messageIndex, {
+          isStreaming: false,
+          activities: [...activities]
         });
       },
       // onError
       (error) => {
         console.error('SSE stream error:', error);
         setCurrentActivity('');
-        setMessages(prev => {
-          const newMessages = [...prev];
-          if (messageIndex >= 0 && messageIndex < newMessages.length) {
-            newMessages[messageIndex] = {
-              role: 'assistant',
-              content: 'Sorry, an error occurred. Please try again.',
-              isStreaming: false,
-              activities: [...activities, {
-                type: 'error',
-                timestamp: Date.now(),
-                data: { message: error.message }
-              }]
-            };
+
+        void (async () => {
+          if (!currentContent) {
+            try {
+              await sendNonStreamingFallback(currentInput, messageIndex, activities);
+              setIsLoading(false);
+              return;
+            } catch (fallbackError) {
+              console.error('MiniChat fallback error:', fallbackError);
+            }
           }
-          return newMessages;
-        });
-        setIsLoading(false);
+
+          updateAssistantMessage(messageIndex, {
+            content: 'Sorry, an error occurred. Please try again.',
+            isStreaming: false,
+            activities: [...activities, {
+              type: 'error',
+              timestamp: Date.now(),
+              data: { message: error.message }
+            }]
+          });
+          setIsLoading(false);
+        })();
       }
     );
   };
@@ -484,7 +583,15 @@ const MiniChat: React.FC<MiniChatProps> = ({
                     />
                   )}
                   {message.role === 'assistant' ? (
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                    message.isStreaming ? (
+                      <div className="mini-streaming-text">
+                        {normalizeAssistantContent(message.content)}
+                      </div>
+                    ) : (
+                      <ReactMarkdown components={assistantMarkdownComponents}>
+                        {normalizeAssistantContent(message.content)}
+                      </ReactMarkdown>
+                    )
                   ) : (
                     message.content
                   )}

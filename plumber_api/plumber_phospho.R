@@ -87,11 +87,18 @@ cat("✅ Analysis functions loaded\n")
 #' Render a ggplot to base64-encoded PNG
 plot_to_base64 <- function(p, width = 800, height = 600, res = 150) {
   if (is.null(p)) return(NULL)
-  tmp <- tempfile(fileext = ".png")
-  on.exit(unlink(tmp), add = TRUE)
+  tmp_dir <- file.path(tempdir(check = TRUE), "dbgist_api_plots")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  tmp <- tempfile(tmpdir = tmp_dir, fileext = ".png")
   png(tmp, width = width, height = height, res = res)
-  tryCatch(print(p), error = function(e) NULL)
+  ok <- FALSE
+  tryCatch({
+    print(p)
+    ok <- TRUE
+  }, error = function(e) NULL)
   dev.off()
+  if (!ok || !file.exists(tmp)) return(NULL)
+  on.exit(unlink(tmp), add = TRUE)
   base64enc::base64encode(tmp)
 }
 
@@ -133,6 +140,43 @@ get_phosphosites <- function(gene) {
     sites <- union(sites, rn[grepl(pattern, rn)])
   }
   sites
+}
+
+phosphosite_survival_profile <- function(site_id, type = "OS") {
+  ds <- Phosphoproteomics_list[[1]]
+  if (!(site_id %in% rownames(ds$Matrix))) {
+    return(list(site_id = site_id, valid_n = 0L, event_levels = 0L))
+  }
+
+  expr <- as.numeric(ds$Matrix[site_id, ])[match(ds$Clinical$Sample.ID, colnames(ds$Matrix))]
+  time_col <- ifelse(type == "OS", "OS.time", "PFS.time")
+  event_col <- ifelse(type == "OS", "OS", "PFS")
+  keep <- !is.na(expr) & !is.na(ds$Clinical[[time_col]]) & !is.na(ds$Clinical[[event_col]])
+  events <- ds$Clinical[[event_col]][keep]
+
+  list(
+    site_id = site_id,
+    valid_n = sum(keep),
+    event_levels = length(unique(events)),
+    event_values = unique(events)
+  )
+}
+
+choose_survival_phosphosite <- function(gene, type = "OS") {
+  sites <- get_phosphosites(gene)
+  if (length(sites) == 0) return(NULL)
+
+  profiles <- lapply(sites, phosphosite_survival_profile, type = type)
+  scores <- vapply(profiles, function(x) {
+    if (x$event_levels < 2) return(-1L)
+    as.integer(x$valid_n)
+  }, integer(1))
+
+  if (!any(scores >= 0)) {
+    return(NULL)
+  }
+
+  profiles[[which.max(scores)]]
 }
 
 # Clinical analysis function map
@@ -258,18 +302,21 @@ build_summary <- function(gene = "") {
   if (length(clinical) > 0) result$clinical_associations <- clinical
 
   has_sun <- "Sun" %in% info$datasets
-  if (has_sun && (site_id %in% rownames(Phosphoproteomics_list[[1]]$Matrix))) {
+  survival_site <- choose_survival_phosphosite(gene, type = "OS")
+  if (has_sun && !is.null(survival_site) && (survival_site$site_id %in% rownames(Phosphoproteomics_list[[1]]$Matrix))) {
     survival_entries <- Filter(Negate(is.null), lapply(c("OS", "PFS"), function(type) {
       tryCatch({
+        chosen <- choose_survival_phosphosite(gene, type = type)
+        if (is.null(chosen)) return(NULL)
         km_result <- Pho_KM_function(
           Protemics2_Clinical = Phosphoproteomics_list[[1]]$Clinical,
           CutOff_point = "Auto",
           Survival_type = type,
-          ID = site_id
+          ID = chosen$site_id
         )
         stats <- if (is.list(km_result)) km_result$statistics else NULL
         if (is.null(stats)) return(NULL)
-        c(list(type = type), stats)
+        c(list(type = type, phosphosite = chosen$site_id), stats)
       }, error = function(e) NULL)
     }))
     if (length(survival_entries) > 0) result$survival <- unname(survival_entries)
@@ -398,7 +445,22 @@ function(gene = "", type = "OS", cutoff = "Auto") {
   if (length(sites) == 0) {
     return(list(gene = gene, type = type, error = paste0("No phosphosites for ", gene)))
   }
-  site_id <- sites[1]
+
+  selected <- choose_survival_phosphosite(gene, type = type)
+  if (is.null(selected)) {
+    return(list(
+      gene = gene,
+      type = type,
+      error = paste0(
+        "No phosphosite for ",
+        gene,
+        " has sufficient non-missing ",
+        type,
+        " observations with both event classes"
+      )
+    ))
+  }
+  site_id <- selected$site_id
 
   # Check availability in dataset 1 (tumor data with clinical info)
   if (!(site_id %in% rownames(Phosphoproteomics_list[[1]]$Matrix))) {

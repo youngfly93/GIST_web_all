@@ -2071,6 +2071,11 @@ body {
   padding: 0;
 }
 
+.mini-streaming-text {
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
 /* 分析结果图片样式 */
 .mini-message-image {
   margin-top: 0.75rem;

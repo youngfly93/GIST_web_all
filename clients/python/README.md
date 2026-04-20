@@ -1,6 +1,6 @@
 # dbGIST Python Client
 
-Minimal Python client for the unified dbGIST API under `/api/v1`.
+Minimal Python client for the unified dbGIST API.
 
 Current scope:
 
@@ -14,15 +14,29 @@ This client uses only the Python standard library.
 
 ## Quick start
 
+Production:
+
 ```python
 from dbgist_v1_client import DbGistClient
 
-client = DbGistClient("http://127.0.0.1:8000")
+client = DbGistClient("https://www.dbgist.com")
 
 print(client.health())
 print(client.transcriptomics_summary("KIT"))
 print(client.noncoding_summary("hsa-miR-21-5p"))
 ```
+
+Local development:
+
+```python
+from dbgist_v1_client import DbGistClient
+
+client = DbGistClient("http://127.0.0.1:8000")
+```
+
+Important:
+- Pass the site root as `base_url`
+- Do **not** append `/api/v1`; the client adds it automatically
 
 ## Available methods
 

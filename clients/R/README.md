@@ -1,6 +1,6 @@
 # dbGIST R Client
 
-Minimal R client for the unified dbGIST API under `/api/v1`.
+Minimal R client for the unified dbGIST API.
 
 Current scope:
 
@@ -17,15 +17,29 @@ The client is a single sourceable script and currently depends on:
 
 ## Quick start
 
+Production:
+
 ```r
 source("clients/R/dbgist_v1_client.R")
 
-client <- dbgist_client("http://127.0.0.1:8000")
+client <- dbgist_client("https://www.dbgist.com")
 
 client$health()
 client$transcriptomics_summary("KIT")
 client$noncoding_summary("hsa-miR-21-5p")
 ```
+
+Local development:
+
+```r
+source("clients/R/dbgist_v1_client.R")
+
+client <- dbgist_client("http://127.0.0.1:8000")
+```
+
+Important:
+- Pass the site root as `base_url`
+- Do **not** append `/api/v1`; the client adds it automatically
 
 ## Available methods
 

@@ -103,6 +103,8 @@ tryCatch(
   error = function(e) cat("⚠️ Non-fatal source error:", conditionMessage(e), "\n")
 )
 setwd(old_wd)
+dbGIST_matrix <- get("dbGIST_matrix", envir = .GlobalEnv)
+cat("🔄 Transcriptome object refreshed from global.R aliases\n")
 cat("✅ Analysis functions loaded\n")
 
 # ---------------------------------------------------------------------------
@@ -182,12 +184,167 @@ drug_resistance_indices <- function() {
 
 plot_to_base64 <- function(p, width = 800, height = 600, res = 150) {
   if (is.null(p)) return(NULL)
-  tmp <- tempfile(fileext = ".png")
-  on.exit(unlink(tmp), add = TRUE)
+  tmp_dir <- file.path(tempdir(check = TRUE), "dbgist_api_plots")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  tmp <- tempfile(tmpdir = tmp_dir, fileext = ".png")
   png(tmp, width = width, height = height, res = res)
-  tryCatch(print(p), error = function(e) NULL)
+  ok <- FALSE
+  tryCatch({
+    print(p)
+    ok <- TRUE
+  }, error = function(e) NULL)
   dev.off()
+  if (!ok || !file.exists(tmp)) return(NULL)
+  on.exit(unlink(tmp), add = TRUE)
   base64enc::base64encode(tmp)
+}
+
+normalize_matrix_sample_id <- function(x) {
+  x <- trimws(as.character(x))
+  x <- sub("\\.(gz|bz2)$", "", x, ignore.case = TRUE)
+  x <- sub("_hyb.*$", "", x, ignore.case = TRUE)
+  x <- sub("\\.(cel|txt|idat|tsv|csv)$", "", x, ignore.case = TRUE)
+  x
+}
+
+normalize_imatinib_response <- function(x) {
+  raw <- trimws(as.character(x))
+  low <- tolower(raw)
+  out <- rep(NA_character_, length(raw))
+  observed <- unique(toupper(raw[!is.na(raw) & nzchar(raw)]))
+
+  if (length(observed) > 0 && all(observed %in% c("NR", "R"))) {
+    out[toupper(raw) == "NR"] <- "Resistant"
+    out[toupper(raw) == "R"] <- "Sensitive"
+    return(out)
+  }
+
+  if (length(observed) > 0 && all(observed %in% c("N", "R"))) {
+    out[toupper(raw) == "R"] <- "Resistant"
+    return(out)
+  }
+
+  out[grepl("non[- ]?response|resistan", low)] <- "Resistant"
+  out[grepl("^response$|sensitive", low)] <- "Sensitive"
+  out
+}
+
+match_transcriptome_matrix_to_clinical <- function(ds, candidate_cols = c("Sample_geo_accession", "geo_accession", "Sample", "title", "Sample.ID", ".rowname")) {
+  matrix_ids <- normalize_matrix_sample_id(colnames(ds$Matrix))
+  best <- NULL
+  best_score <- -1L
+
+  for (col in candidate_cols) {
+    if (!(col %in% colnames(ds$Clinical))) next
+    clinical_ids <- normalize_matrix_sample_id(ds$Clinical[[col]])
+    idx <- match(matrix_ids, clinical_ids)
+    score <- sum(!is.na(idx))
+    if (score > best_score) {
+      best <- list(column = col, index = idx, score = score)
+      best_score <- score
+    }
+  }
+
+  if ((is.null(best) || best_score <= 0L) && nrow(ds$Clinical) == ncol(ds$Matrix)) {
+    best <- list(column = ".positional", index = seq_len(ncol(ds$Matrix)), score = ncol(ds$Matrix))
+  }
+
+  best
+}
+
+aligned_transcriptome_clinical <- function(ds, gene = NULL, candidate_cols = c("Sample_geo_accession", "geo_accession", "Sample", "title", "Sample.ID", ".rowname")) {
+  if (!is.null(gene) && !(gene %in% rownames(ds$Matrix))) {
+    return(NULL)
+  }
+
+  matched <- match_transcriptome_matrix_to_clinical(ds, candidate_cols = candidate_cols)
+  if (is.null(matched) || is.null(matched$index) || all(is.na(matched$index))) {
+    return(NULL)
+  }
+
+  clinical <- ds$Clinical[matched$index, , drop = FALSE]
+  list(clinical = clinical, matched = matched)
+}
+
+build_transcriptome_drug_response <- function(gene) {
+  plots <- list()
+  stats <- list()
+
+  for (idx in drug_resistance_indices()) {
+    ds <- dbGIST_matrix[[idx]]
+    if (!(gene %in% rownames(ds$Matrix)) || !("Imatinib" %in% colnames(ds$Clinical))) next
+
+    matched <- match_transcriptome_matrix_to_clinical(ds)
+    if (is.null(matched) || is.null(matched$index) || all(is.na(matched$index))) next
+
+    clinical <- ds$Clinical[matched$index, , drop = FALSE]
+    expr <- as.numeric(ds$Matrix[gene, ])
+    response <- normalize_imatinib_response(clinical$Imatinib)
+    keep <- !is.na(expr) & !is.na(response)
+    if (!any(keep)) next
+
+    df <- data.frame(
+      value = expr[keep],
+      response = factor(response[keep], levels = c("Sensitive", "Resistant")),
+      stringsAsFactors = FALSE
+    )
+    if (length(unique(df$response)) < 2) next
+
+    roc_obj <- tryCatch(pROC::roc(df$response, df$value, quiet = TRUE), error = function(e) NULL)
+    auc_val <- if (!is.null(roc_obj)) as.numeric(pROC::auc(roc_obj)) else NULL
+
+    box_plot <- ggplot(df, aes(response, value, fill = response)) +
+      geom_boxplot(outlier.colour = NA, notch = FALSE, size = 0.4) +
+      geom_jitter(shape = 21, size = 2, width = 0.2) +
+      geom_violin(position = position_dodge(width = 0.75), size = 0.4, alpha = 0.4, trim = TRUE) +
+      scale_fill_lancet() +
+      theme_bw() +
+      ylab(gene) +
+      ggtitle(str_c(ds$ID, " (n = ", nrow(df), ")")) +
+      theme(
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size = 14),
+        axis.title.y = element_text(size = 12),
+        axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
+        axis.title.x = element_blank()
+      )
+
+    roc_plot <- NULL
+    if (!is.null(roc_obj)) {
+      dd <- data.frame(
+        fp = 1 - roc_obj$specificities,
+        tp = roc_obj$sensitivities
+      ) %>% arrange(desc(fp), tp)
+      roc_plot <- ggplot(dd, aes(fp, tp)) +
+        geom_line(linewidth = 1) +
+        labs(x = "1-Specificity", y = "Sensitivity", color = NULL) +
+        theme_bw(base_rect_size = 1.5) +
+        geom_abline(slope = 1, color = "grey70") +
+        ggtitle(str_c(ds$ID, " ROC")) +
+        annotate("text", x = 0.7, y = 0.2, label = str_c("AUC: ", round(auc_val, 2)), color = "darkred") +
+        theme(
+          plot.title = element_text(hjust = 0.5, size = 14),
+          axis.text = element_text(size = 11),
+          axis.title = element_text(size = 13)
+        )
+    }
+
+    plots[[length(plots) + 1L]] <- if (!is.null(roc_plot)) (box_plot + roc_plot) else box_plot
+    stats[[length(stats) + 1L]] <- list(
+      dataset = as.character(ds$ID),
+      matched_by = matched$column,
+      matched_samples = nrow(df),
+      auc = auc_val,
+      groups = as.list(table(df$response))
+    )
+  }
+
+  if (length(plots) == 0) return(NULL)
+
+  list(
+    plot = wrap_plots(plots, ncol = 1),
+    statistics = stats
+  )
 }
 
 dataset_ids <- function() {
@@ -242,16 +399,38 @@ build_readiness <- function() {
     unname(unlist(CLINICAL_FUNCTIONS, use.names = FALSE)),
     "dbGIST_boxplot_Drug"
   )))
+  smoke_tests <- list(
+    risk_mcm7 = tryCatch(
+      !is.null(invoke_transcriptome_fn("dbGIST_boxplot_Risk", "MCM7", variable = "Risk")),
+      error = function(e) FALSE
+    ),
+    mutation_kit = tryCatch(
+      !is.null(invoke_transcriptome_fn("dbGIST_boxplot_Mutation_ID", "KIT", variable = "Mutation_ID")),
+      error = function(e) FALSE
+    ),
+    age_abl1 = tryCatch(
+      !is.null(invoke_transcriptome_fn("dbGIST_boxplot_Age", "ABL1", variable = "Age")),
+      error = function(e) FALSE
+    ),
+    survival_mcm7 = tryCatch({
+      surv <- build_summary("MCM7")$survival
+      !is.null(surv) && length(surv) > 0
+    }, error = function(e) FALSE)
+  )
   blockers <- character(0)
 
   if (datasets_loaded == 0) blockers <- c(blockers, "no_datasets_loaded")
   if (!all(unlist(required_functions, use.names = FALSE))) blockers <- c(blockers, "missing_required_functions")
+  if (!all(unlist(smoke_tests, use.names = FALSE))) blockers <- c(blockers, "smoke_test_failure")
 
   list(
     module = "transcriptomics",
-    ready = datasets_loaded > 0 && all(unlist(required_functions, use.names = FALSE)),
+    ready = datasets_loaded > 0 &&
+      all(unlist(required_functions, use.names = FALSE)) &&
+      all(unlist(smoke_tests, use.names = FALSE)),
     datasets_loaded = datasets_loaded,
     required_functions = required_functions,
+    smoke_tests = smoke_tests,
     blockers = blockers,
     warmup_ms = as.integer(round(as.numeric(difftime(Sys.time(), started_at, units = "secs")) * 1000)),
     notes = c(
@@ -341,7 +520,10 @@ build_summary <- function(gene = "") {
       if (is.null(surv_ds_idx)) return(NULL)
 
       ds <- dbGIST_matrix[[surv_ds_idx]]
-      clinical_df <- ds$Clinical
+      aligned <- aligned_transcriptome_clinical(ds, gene = gene)
+      if (is.null(aligned)) return(NULL)
+
+      clinical_df <- aligned$clinical
       clinical_df$Expr <- as.numeric(ds$Matrix[gene, ])
 
       time_col <- ifelse(type == "OS", "OS.time", "PFS.time")
@@ -359,8 +541,8 @@ build_summary <- function(gene = "") {
       cutoff_value <- res.cut$cutpoint$cutpoint
       res.cat <- survminer::surv_categorize(res.cut)
       res.cat$Expr <- factor(res.cat$Expr, levels = c("low", "high"))
-      formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
-      cox_fit <- survival::coxph(formula, data = res.cat)
+      surv_formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
+      cox_fit <- survival::coxph(formula = surv_formula, data = res.cat)
       cox_sum <- summary(cox_fit)
 
       list(
@@ -384,8 +566,11 @@ build_summary <- function(gene = "") {
       ds <- dbGIST_matrix[[idx]]
       if (!(gene %in% rownames(ds$Matrix)) || !("Imatinib" %in% colnames(ds$Clinical))) next
 
+      aligned <- aligned_transcriptome_clinical(ds, gene = gene)
+      if (is.null(aligned)) next
+
       values <- as.numeric(ds$Matrix[gene, ])
-      response <- ds$Clinical$Imatinib
+      response <- normalize_imatinib_response(aligned$clinical$Imatinib)
       df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
       df <- na.omit(df)
       if (nrow(df) == 0) next
@@ -525,12 +710,27 @@ function(gene = "", type = "OS", cutoff = "Auto") {
   }
 
   if (is.null(surv_ds_idx)) {
-    return(list(gene = gene, type = type, error = paste0(gene, " not found in any dataset with ", type, " data")))
+    return(list(
+      gene = gene,
+      type = type,
+      error = paste0(
+        "No mRNA cohort currently contains both ",
+        gene,
+        " expression and ",
+        type,
+        " survival endpoints"
+      )
+    ))
   }
 
   tryCatch({
     ds <- dbGIST_matrix[[surv_ds_idx]]
-    clinical <- ds$Clinical
+    aligned <- aligned_transcriptome_clinical(ds, gene = gene)
+    if (is.null(aligned)) {
+      return(list(gene = gene, type = type, error = "Unable to align matrix columns to clinical rows"))
+    }
+
+    clinical <- aligned$clinical
     clinical$Expr <- as.numeric(ds$Matrix[gene, ])
 
     time_col  <- ifelse(type == "OS", "OS.time", "PFS.time")
@@ -561,9 +761,10 @@ function(gene = "", type = "OS", cutoff = "Auto") {
     }
     res.cat$Expr <- factor(res.cat$Expr, levels = c("low", "high"))
 
-    formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
-    fit <- survival::survfit(formula, data = res.cat)
-    cox_fit <- survival::coxph(formula, data = res.cat)
+    surv_formula <- as.formula(paste("Surv(", time_col, ",", event_col, ") ~ Expr"))
+    fit <- survival::survfit(surv_formula, data = res.cat)
+    fit$call$formula <- surv_formula
+    cox_fit <- survival::coxph(formula = surv_formula, data = res.cat)
     cox_sum <- summary(cox_fit)
 
     p <- survminer::ggsurvplot(fit, data = res.cat,
@@ -607,53 +808,12 @@ function(gene = "") {
   }
 
   tryCatch({
-    fn <- tryCatch(get("dbGIST_boxplot_Drug", envir = .GlobalEnv), error = function(e) NULL)
-    if (is.null(fn)) {
-      return(list(gene = gene, error = "dbGIST_boxplot_Drug function not found"))
-    }
-
-    p <- fn(ID = gene, DB = subset_datasets(ids = TRANSCRIPTOME_DATASET_IDS$Drug, classes = "mRNA"))
-
+    drug <- build_transcriptome_drug_response(gene)
     result <- list(gene = gene)
 
-    if (!is.null(p)) {
-      # Use suggested size from the function if available
-      w <- 1200
-      h <- 800
-      sz <- attr(p, "suggested_size_px")
-      if (!is.null(sz)) {
-        w <- min(sz$width %/% 2, 1600)
-        h <- min(sz$height %/% 2, 1200)
-      }
-      result$plot <- plot_to_base64(p, width = w, height = h)
-
-      # Try to extract AUC from the drug-resistance datasets
-      tryCatch({
-        n_total <- 0
-        auc_val <- NULL
-        for (idx in drug_resistance_indices()) {
-          ds <- dbGIST_matrix[[idx]]
-          if (gene %in% rownames(ds$Matrix) && "Imatinib" %in% colnames(ds$Clinical)) {
-            values <- as.numeric(ds$Matrix[gene, ])
-            response <- ds$Clinical$Imatinib
-            df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
-            df <- na.omit(df)
-            n_total <- n_total + nrow(df)
-            if (length(unique(df$grp)) == 2 && is.null(auc_val)) {
-              tryCatch({
-                roc_obj <- pROC::roc(df$grp, df$val, quiet = TRUE)
-                auc_val <- as.numeric(pROC::auc(roc_obj))
-              }, error = function(e) NULL)
-            }
-          }
-        }
-        result$statistics <- list(
-          auc       = auc_val,
-          n_samples = n_total
-        )
-      }, error = function(e) {
-        cat("⚠️ Drug resistance stats error:", conditionMessage(e), "\n")
-      })
+    if (!is.null(drug)) {
+      result$plot <- plot_to_base64(drug$plot, width = 1200, height = 800)
+      result$statistics <- drug$statistics
     } else {
       result$error <- paste0("No drug response data for ", gene)
     }

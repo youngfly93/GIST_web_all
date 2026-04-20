@@ -1,105 +1,268 @@
 import express from 'express';
 import axios from 'axios';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 const router = express.Router();
 
-// Python GLM Agent 服务地址
-const AGENT_URL = process.env.AGENT_URL || 'http://localhost:5001';
+// Accepts either a base64 data URI (existing R/frontend usage) or a local file
+// path (new: Shiny R clients pass the PNG path directly — Node reads it and
+// base64-encodes, which is ~5× faster than the R-side readBin + base64encode).
+// Paths must resolve under one of the allow-listed roots.
+const PLOT_ROOT_CANDIDATES = [
+  process.env.PLOT_ROOT,
+  path.resolve(process.cwd(), 'backend/public/plots'),
+  path.resolve(process.cwd(), 'public/plots'),
+  '/home/ylab/GIST_web_all/backend/public/plots',
+  '/home/ylab',
+  '/mnt/f/work/yang_ylab/GIST_web_all'
+].filter(Boolean);
+
+const MIME_BY_EXT = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp'
+};
+
+const resolveImage = async (image) => {
+  if (!image || typeof image !== 'string') return image;
+  if (image.startsWith('data:') || image.startsWith('http://') || image.startsWith('https://')) {
+    return image;
+  }
+  const abs = path.resolve(image);
+  const underRoot = PLOT_ROOT_CANDIDATES.some((root) => {
+    try {
+      const r = path.resolve(root);
+      return abs === r || abs.startsWith(`${r}${path.sep}`);
+    } catch (_) {
+      return false;
+    }
+  });
+  if (!underRoot) {
+    console.warn(`[Chat] image path rejected (outside allow-list): ${abs}`);
+    return null;
+  }
+  try {
+    const buf = await fs.readFile(abs);
+    const mime = MIME_BY_EXT[path.extname(abs).toLowerCase()] || 'image/png';
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch (error) {
+    console.warn(`[Chat] failed to read image ${abs}: ${error.message}`);
+    return null;
+  }
+};
+
+const SYSTEM_PROMPT = `You are an assistant specialized in Gastrointestinal Stromal Tumor (GIST). Your primary role is to help users learn GIST-related knowledge, including:
+
+1. Basic concepts and molecular mechanisms of GIST
+2. Common gene mutations (e.g., KIT, PDGFRA)
+3. Diagnostic methods and pathological features
+4. Treatment options and drug information
+5. Research progress and literature resources
+
+When an image is provided, carefully analyze the figure, including data characteristics, key trends, relevance to GIST research, and potential clinical implications.
+
+Communication style: use clear, plain, and educational language; avoid medical advice. For clinical decisions, remind the user to consult a physician.
+
+Language policy: Reply in English by default. If the user's message is written in Chinese (Simplified) or primarily contains Chinese characters, answer in Chinese (简体中文). Otherwise reply in English.`;
+
+const getProviderConfig = () => {
+  const providerFromEnv = (process.env.PROVIDER || '').toLowerCase();
+  const useDeepseek = providerFromEnv === 'deepseek' || (!!process.env.DS_API_KEY && !!process.env.DS_API_URL);
+
+  return {
+    provider: useDeepseek ? 'deepseek' : 'ark',
+    apiUrl: useDeepseek
+      ? (process.env.DS_API_URL || 'https://api.deepseek.com/v1/chat/completions')
+      : process.env.ARK_API_URL,
+    apiKey: useDeepseek ? process.env.DS_API_KEY : process.env.ARK_API_KEY,
+    modelId: useDeepseek
+      ? (process.env.DS_MODEL_ID || 'deepseek-chat')
+      : (process.env.ARK_MODEL_ID || 'deepseek-v3-250324')
+  };
+};
+
+const buildUserContent = (message, image) => {
+  if (!image) {
+    return message;
+  }
+
+  return [
+    {
+      type: 'text',
+      text: message
+    },
+    {
+      type: 'image_url',
+      image_url: {
+        url: image
+      }
+    }
+  ];
+};
+
+const buildRequestData = ({ message, image, stream }) => ({
+  model: getProviderConfig().modelId,
+  messages: [
+    {
+      role: 'system',
+      content: SYSTEM_PROMPT
+    },
+    {
+      role: 'user',
+      content: buildUserContent(message, image)
+    }
+  ],
+  temperature: 0.7,
+  max_tokens: 1500,
+  stream
+});
+
+const writeSseEvent = (res, event, data) => {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+  if (typeof res.flush === 'function') {
+    res.flush();
+  }
+};
+
+const streamProviderResponse = (upstream, onDelta) => new Promise((resolve, reject) => {
+  let buffer = '';
+
+  upstream.on('data', (chunk) => {
+    buffer += chunk.toString();
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) {
+        continue;
+      }
+
+      if (line === 'data: [DONE]') {
+        continue;
+      }
+
+      try {
+        const payload = JSON.parse(line.slice(6));
+        const delta = payload.choices?.[0]?.delta?.content;
+
+        if (delta) {
+          onDelta(delta);
+        }
+      } catch (error) {
+        console.error('Parse stream chunk error:', error);
+      }
+    }
+  });
+
+  upstream.on('end', resolve);
+  upstream.on('error', reject);
+});
 
 router.post('/', async (req, res) => {
   try {
-    const { message, stream = false } = req.body;
+    const { message, image, stream = false } = req.body;
+    const appTag = req.get('x-dbgist-app') || 'unknown';
 
     if (!message) {
       return res.status(400).json({ error: '消息不能为空' });
     }
 
-    console.log(`[Chat] 收到请求: ${message.substring(0, 100)}...`);
-    console.log(`[Chat] Agent URL: ${AGENT_URL}`);
+    const providerConfig = getProviderConfig();
 
-    // 转发到 Python GLM Agent
-    const agentResponse = await axios.post(
-      `${AGENT_URL}/chat`,
-      { message },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        timeout: 600000 // 10分钟超时 (富集/GSEA 等分析可能较慢)
-      }
-    );
-
-    const { reply, image } = agentResponse.data;
-
-    console.log(`[Chat] Agent 回复: ${reply?.substring(0, 100)}...`);
-    if (image) {
-      console.log(`[Chat] 包含图片: ${image}`);
+    if (!providerConfig.apiKey || !providerConfig.apiUrl) {
+      return res.status(500).json({ error: 'AI服务未正确配置（缺少密钥或URL）' });
     }
 
+    const resolvedImage = await resolveImage(image);
+
+    console.log(
+      `[Chat] App=${appTag} Provider=${providerConfig.provider} Model=${providerConfig.modelId} Stream=${stream} ImageIn=${typeof image}:${image ? image.slice(0, 60) : 'none'} ImageResolved=${!!resolvedImage}`
+    );
+
+    const requestData = {
+      ...buildRequestData({ message, image: resolvedImage, stream }),
+      model: providerConfig.modelId
+    };
+
     if (stream) {
-      // 流式响应模式 - 逐字符发送
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders?.();
 
-      if (typeof res.flushHeaders === 'function') {
-        res.flushHeaders();
-      }
-
-      // 模拟流式输出
-      const fullReply = reply || '';
-      const chunkSize = 10; // 每次发送10个字符
-
-      for (let i = 0; i < fullReply.length; i += chunkSize) {
-        const chunk = fullReply.substring(i, i + chunkSize);
-        res.write(chunk);
-        if (typeof res.flush === 'function') {
-          res.flush();
-        }
-        // 短暂延迟模拟打字效果
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
-
-      // 如果有图片，在末尾添加图片标记
-      if (image) {
-        res.write(`\n\n[IMAGE:${image}]`);
-      }
-
-      res.end();
-
-    } else {
-      // 非流式响应
-      res.json({
-        reply: reply || '',
-        image: image || null
+      const upstream = await axios.post(providerConfig.apiUrl, requestData, {
+        headers: {
+          Authorization: `Bearer ${providerConfig.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'stream',
+        timeout: 60000
       });
+
+      // If the client aborts (widget's AbortController, user navigates away, etc.),
+      // tear down the upstream stream promptly so tokens aren't billed for nothing.
+      const onClientClose = () => {
+        console.log(`[Chat] App=${appTag} client disconnected — aborting upstream stream`);
+        try { upstream.data.destroy(); } catch { /* noop */ }
+      };
+      req.on('close', onClientClose);
+
+      try {
+        await streamProviderResponse(upstream.data, (delta) => {
+          if (!res.writableEnded) {
+            res.write(delta);
+            if (typeof res.flush === 'function') res.flush();
+          }
+        });
+      } catch (streamErr) {
+        if (!req.aborted) throw streamErr;
+      } finally {
+        req.off('close', onClientClose);
+      }
+
+      if (!res.writableEnded) res.end();
+      return;
     }
 
-  } catch (error) {
-    console.error('[Chat] 错误详情:');
-    console.error('Error:', error.message);
+    const upstream = await axios.post(providerConfig.apiUrl, requestData, {
+      headers: {
+        Authorization: `Bearer ${providerConfig.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
 
-    if (error.code === 'ECONNREFUSED') {
-      res.status(503).json({
-        error: 'AI Agent 服务未启动，请先启动 Python Agent 服务',
-        details: `无法连接到 ${AGENT_URL}`
+    const reply = upstream.data.choices?.[0]?.message?.content || '';
+    res.json({ reply });
+  } catch (error) {
+    console.error('Chat API error details:');
+    console.error('Status:', error.response?.status);
+    console.error('Status Text:', error.response?.statusText);
+    console.error('Response Data:', error.response?.data);
+    console.error('Error Message:', error.message);
+
+    if (error.response?.status === 401) {
+      res.status(500).json({
+        error: 'API认证失败，请检查API Key是否正确。'
       });
-    } else if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-      res.status(504).json({
-        error: '分析超时，请稍后重试',
-        details: 'R 脚本执行时间过长'
+    } else if (error.response?.status === 429) {
+      res.status(500).json({
+        error: 'API调用频率过高，请稍后再试。'
       });
     } else {
       res.status(500).json({
-        error: '抱歉，服务暂时不可用，请稍后再试。',
-        details: error.message
+        error: '抱歉，AI服务暂时不可用，请稍后再试。',
+        details: error.response?.data?.error || error.message
       });
     }
   }
 });
 
-// SSE 流式聊天 - 实时 Agent 活动追踪
 router.post('/stream', async (req, res) => {
   try {
     const { message } = req.body;
@@ -108,91 +271,85 @@ router.post('/stream', async (req, res) => {
       return res.status(400).json({ error: '消息不能为空' });
     }
 
-    console.log(`[Chat/Stream] 收到请求: ${message.substring(0, 100)}...`);
+    const providerConfig = getProviderConfig();
 
-    // 设置 SSE 响应头
+    if (!providerConfig.apiKey || !providerConfig.apiUrl) {
+      return res.status(500).json({ error: 'AI服务未正确配置（缺少密钥或URL）' });
+    }
+
+    console.log(
+      `[Chat/Stream] Provider=${providerConfig.provider} URL=${providerConfig.apiUrl} Model=${providerConfig.modelId}`
+    );
+
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
 
-    if (typeof res.flushHeaders === 'function') {
-      res.flushHeaders();
-    }
-
-    // 转发到 Python Agent SSE 端点
-    const agentResponse = await axios({
-      method: 'POST',
-      url: `${AGENT_URL}/chat/stream`,
-      data: { message },
-      headers: { 'Content-Type': 'application/json' },
-      responseType: 'stream',
-      timeout: 600000 // 10分钟超时
+    writeSseEvent(res, 'thinking', {
+      content: 'Analyzing your question...'
     });
 
-    // 管道传输 SSE 流
-    agentResponse.data.on('data', (chunk) => {
-      res.write(chunk);
-      if (typeof res.flush === 'function') {
-        res.flush();
+    const upstream = await axios.post(
+      providerConfig.apiUrl,
+      {
+        ...buildRequestData({ message, image: undefined, stream: true }),
+        model: providerConfig.modelId
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${providerConfig.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        responseType: 'stream',
+        timeout: 60000
       }
+    );
+
+    let fullContent = '';
+    await streamProviderResponse(upstream.data, (delta) => {
+      fullContent += delta;
+      writeSseEvent(res, 'text', {
+        content: fullContent,
+        delta
+      });
     });
 
-    agentResponse.data.on('end', () => {
-      console.log('[Chat/Stream] 流式传输完成');
-      res.end();
-    });
-
-    agentResponse.data.on('error', (error) => {
-      console.error('[Chat/Stream] 流式传输错误:', error.message);
-      res.write(`event: error\ndata: ${JSON.stringify({ message: error.message })}\n\n`);
-      res.end();
-    });
-
+    writeSseEvent(res, 'done', { message: 'complete' });
+    res.end();
   } catch (error) {
-    console.error('[Chat/Stream] 错误:', error.message);
+    console.error('[Chat/Stream] error details:');
+    console.error('Status:', error.response?.status);
+    console.error('Status Text:', error.response?.statusText);
+    console.error('Response Data:', error.response?.data);
+    console.error('Error Message:', error.message);
 
-    // 如果响应头尚未发送，设置 SSE 头
     if (!res.headersSent) {
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
     }
 
-    const errorMessage = error.code === 'ECONNREFUSED'
-      ? 'AI Agent 服务未启动'
-      : error.code === 'ETIMEDOUT'
-        ? '分析超时'
-        : error.message;
+    const errorMessage = error.response?.status === 401
+      ? 'API认证失败，请检查API Key是否正确。'
+      : error.response?.status === 429
+        ? 'API调用频率过高，请稍后再试。'
+        : (error.response?.data?.error || error.message || 'AI服务暂时不可用');
 
-    res.write(`event: error\ndata: ${JSON.stringify({ message: errorMessage })}\n\n`);
+    writeSseEvent(res, 'error', { message: errorMessage });
     res.end();
   }
 });
 
-// 重置对话历史
-router.post('/reset', async (req, res) => {
-  try {
-    await axios.post(`${AGENT_URL}/reset`);
-    res.json({ message: '对话已重置' });
-  } catch (error) {
-    res.status(500).json({ error: '重置失败' });
-  }
-});
-
-// 健康检查
-router.get('/health', async (req, res) => {
-  try {
-    const response = await axios.get(`${AGENT_URL}/health`, { timeout: 5000 });
-    res.json({
-      status: 'ok',
-      agent: response.data
-    });
-  } catch (error) {
-    res.status(503).json({
-      status: 'error',
-      message: 'Agent 服务不可用',
-      agentUrl: AGENT_URL
-    });
-  }
+router.get('/health', async (_req, res) => {
+  const providerConfig = getProviderConfig();
+  res.json({
+    status: providerConfig.apiKey && providerConfig.apiUrl ? 'ok' : 'error',
+    provider: providerConfig.provider,
+    apiUrl: providerConfig.apiUrl,
+    modelId: providerConfig.modelId
+  });
 });
 
 export default router;

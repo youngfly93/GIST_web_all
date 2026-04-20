@@ -31,6 +31,41 @@ interface Message {
   isStreaming?: boolean;         // 是否正在流式传输
 }
 
+const floatingMarkdownComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p style={{ margin: '0.3em 0', lineHeight: '1.4' }}>{children}</p>
+  ),
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 style={{ fontSize: '1.1em', fontWeight: 'bold', margin: '0.5em 0 0.3em 0' }}>{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 style={{ fontSize: '1.05em', fontWeight: 'bold', margin: '0.4em 0 0.2em 0' }}>{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 style={{ fontSize: '1.02em', fontWeight: 'bold', margin: '0.4em 0 0.2em 0' }}>{children}</h3>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul style={{ margin: '0.3em 0', paddingLeft: '1.2em' }}>{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol style={{ margin: '0.3em 0', paddingLeft: '1.2em' }}>{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li style={{ margin: '0.1em 0' }}>{children}</li>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code style={{ backgroundColor: '#f0f0f0', padding: '0.1em 0.3em', borderRadius: '2px', fontSize: '0.9em' }}>{children}</code>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre style={{ backgroundColor: '#f0f0f0', padding: '0.5em', borderRadius: '4px', overflow: 'auto', margin: '0.3em 0', fontSize: '0.85em' }}>{children}</pre>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => <strong style={{ fontWeight: 'bold' }}>{children}</strong>,
+  em: ({ children }: { children?: React.ReactNode }) => <em style={{ fontStyle: 'italic' }}>{children}</em>
+};
+
+const normalizeAssistantContent = (content: string) =>
+  content.replace(/\r\n/g, '\n').replace(/\u0000/g, '').replace(/\n{3,}/g, '\n\n');
+
 // ActivityPanel 组件 - 显示 Agent 活动日志
 const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolean }> = ({
   activities,
@@ -230,6 +265,41 @@ const FloatingChat: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const updateAssistantMessage = (
+    messageIndex: number,
+    patch: Partial<Message>
+  ) => {
+    setMessages(prev => {
+      const newMessages = [...prev];
+      if (messageIndex >= 0 && messageIndex < newMessages.length) {
+        newMessages[messageIndex] = {
+          ...newMessages[messageIndex],
+          role: 'assistant',
+          ...patch
+        };
+      }
+      return newMessages;
+    });
+  };
+
+  const sendNonStreamingFallback = async (
+    currentInput: string,
+    messageIndex: number,
+    activities: AgentActivity[]
+  ) => {
+    const response = await axios.post('/api/chat', {
+      message: currentInput,
+      stream: false
+    });
+
+    updateAssistantMessage(messageIndex, {
+      content: typeof response.data.reply === 'string' ? response.data.reply : '',
+      image: typeof response.data.image === 'string' ? response.data.image : undefined,
+      activities: [...activities],
+      isStreaming: false
+    });
+  };
 
   // 监听智能截图事件
   useEffect(() => {
@@ -523,10 +593,23 @@ const FloatingChat: React.FC = () => {
       }
 
       const reader = response.body?.getReader();
+      const contentType = response.headers.get('content-type') || '';
       const decoder = new TextDecoder();
 
       if (!reader) {
         throw new Error('No response body');
+      }
+
+      if (!contentType.includes('text/event-stream')) {
+        let rawContent = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          rawContent += decoder.decode(value, { stream: true });
+          onEvent({ type: 'text', data: { content: rawContent } });
+        }
+        onDone();
+        return;
       }
 
       let buffer = '';
@@ -638,31 +721,17 @@ const FloatingChat: React.FC = () => {
           }
 
           // 更新消息状态
-          setMessages(prev => {
-            const newMessages = [...prev];
-            if (messageIndex >= 0 && messageIndex < newMessages.length) {
-              newMessages[messageIndex] = {
-                role: 'assistant',
-                content: currentContent,
-                image: currentImage,
-                activities: [...activities],
-                isStreaming: true
-              };
-            }
-            return newMessages;
+          updateAssistantMessage(messageIndex, {
+            content: currentContent,
+            image: currentImage,
+            activities: [...activities],
+            isStreaming: true
           });
         },
         // onDone
         () => {
-          setMessages(prev => {
-            const newMessages = [...prev];
-            if (messageIndex >= 0 && messageIndex < newMessages.length) {
-              newMessages[messageIndex] = {
-                ...newMessages[messageIndex],
-                isStreaming: false
-              };
-            }
-            return newMessages;
+          updateAssistantMessage(messageIndex, {
+            isStreaming: false
           });
           setLoading(false);
           setCurrentActivity(''); // 清除活动状态
@@ -671,23 +740,29 @@ const FloatingChat: React.FC = () => {
         (error) => {
           console.error('SSE stream error:', error);
           setCurrentActivity(''); // 清除活动状态
-          setMessages(prev => {
-            const newMessages = [...prev];
-            if (messageIndex >= 0 && messageIndex < newMessages.length) {
-              newMessages[messageIndex] = {
-                role: 'assistant',
-                content: '抱歉，服务暂时不可用，请稍后重试。',
-                isStreaming: false,
-                activities: [...activities, {
-                  type: 'error',
-                  timestamp: Date.now(),
-                  data: { message: error.message }
-                }]
-              };
+
+          void (async () => {
+            if (!currentContent) {
+              try {
+                await sendNonStreamingFallback(currentInput, messageIndex, activities);
+                setLoading(false);
+                return;
+              } catch (fallbackError) {
+                console.error('FloatingChat fallback error:', fallbackError);
+              }
             }
-            return newMessages;
-          });
-          setLoading(false);
+
+            updateAssistantMessage(messageIndex, {
+              content: '抱歉，服务暂时不可用，请稍后重试。',
+              isStreaming: false,
+              activities: [...activities, {
+                type: 'error',
+                timestamp: Date.now(),
+                data: { message: error.message }
+              }]
+            });
+            setLoading(false);
+          })();
         }
       );
     } else {
@@ -1016,23 +1091,15 @@ const FloatingChat: React.FC = () => {
               
               {/* 显示文本内容 */}
               {msg.role === 'assistant' ? (
-                <ReactMarkdown 
-                  components={{
-                    p: ({children}) => <p style={{margin: '0.3em 0', lineHeight: '1.4'}}>{children}</p>,
-                    h1: ({children}) => <h1 style={{fontSize: '1.1em', fontWeight: 'bold', margin: '0.5em 0 0.3em 0'}}>{children}</h1>,
-                    h2: ({children}) => <h2 style={{fontSize: '1.05em', fontWeight: 'bold', margin: '0.4em 0 0.2em 0'}}>{children}</h2>,
-                    h3: ({children}) => <h3 style={{fontSize: '1.02em', fontWeight: 'bold', margin: '0.4em 0 0.2em 0'}}>{children}</h3>,
-                    ul: ({children}) => <ul style={{margin: '0.3em 0', paddingLeft: '1.2em'}}>{children}</ul>,
-                    ol: ({children}) => <ol style={{margin: '0.3em 0', paddingLeft: '1.2em'}}>{children}</ol>,
-                    li: ({children}) => <li style={{margin: '0.1em 0'}}>{children}</li>,
-                    code: ({children}) => <code style={{backgroundColor: '#f0f0f0', padding: '0.1em 0.3em', borderRadius: '2px', fontSize: '0.9em'}}>{children}</code>,
-                    pre: ({children}) => <pre style={{backgroundColor: '#f0f0f0', padding: '0.5em', borderRadius: '4px', overflow: 'auto', margin: '0.3em 0', fontSize: '0.85em'}}>{children}</pre>,
-                    strong: ({children}) => <strong style={{fontWeight: 'bold'}}>{children}</strong>,
-                    em: ({children}) => <em style={{fontStyle: 'italic'}}>{children}</em>
-                  }}
-                >
-                  {msg.content}
-                </ReactMarkdown>
+                msg.isStreaming ? (
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                    {normalizeAssistantContent(msg.content)}
+                  </div>
+                ) : (
+                  <ReactMarkdown components={floatingMarkdownComponents}>
+                    {normalizeAssistantContent(msg.content)}
+                  </ReactMarkdown>
+                )
               ) : (
                 msg.content
               )}

@@ -7,7 +7,7 @@ mkdir -p logs/shiny
 
 # 清理可能占用的端口进程，避免端口冲突
 echo "🔄 清理旧进程和端口占用..."
-PORTS=(4964 4966 4967 4968 4971 4972 4974 4975 4991 4992)
+PORTS=(4964 4966 4967 4968 4971 4972 4974 4975 4991 4992 4993 4994)
 
 for port in "${PORTS[@]}"; do
     echo "  检查端口 $port..."
@@ -27,10 +27,12 @@ echo "  清理相关R进程..."
 pkill -f "shiny.*496[4-8]" 2>/dev/null || true
 pkill -f "shiny.*497[1-5]" 2>/dev/null || true
 pkill -f "shiny.*499[1-2]" 2>/dev/null || true
+pkill -f "shiny.*499[3-4]" 2>/dev/null || true
 pkill -f "GIST_shiny" 2>/dev/null || true
 pkill -f "GIST_Protemics" 2>/dev/null || true
 pkill -f "GIST_Phosphoproteomics" 2>/dev/null || true
 pkill -f "GIST_noncoding" 2>/dev/null || true
+pkill -f "GIST_Genomics" 2>/dev/null || true
 
 echo "  等待进程完全退出..."
 sleep 3
@@ -43,6 +45,7 @@ PROTEOMICS_DIR="/home/ylab/GIST_Protemics"
 PHOSPHO_DIR="/home/ylab/GIST_Phosphoproteomics"
 SINGLECELL_DIR="/home/ylab/GIST_SingleCell"
 NONCODING_DIR="/home/ylab/GIST_noncoding"
+GENOMICS_DIR="/home/ylab/GIST_Genomics"
 
 # 启动转录组学应用
 if [ -d "$TRANSCRIPTOMICS_DIR" ]; then
@@ -263,6 +266,49 @@ else
     echo "❌ 非编码目录不存在: $NONCODING_DIR"
 fi
 
+# 启动基因组学项目（Phase 3 接入）
+if [ -d "$GENOMICS_DIR" ]; then
+    echo "🧬 启动基因组学项目..."
+
+    # AI版本 - 端口4994
+    if ! lsof -i :4994 > /dev/null 2>&1; then
+        echo "  启动基因组学 AI版 (端口4994)..."
+        cd "$GENOMICS_DIR"
+        if [ -f "start_ai.R" ]; then
+            nohup Rscript -e "options(shiny.port=4994, shiny.host='0.0.0.0'); source('start_ai.R')" \
+                > /home/ylab/GIST_web_all/logs/shiny/genomics_ai.log 2>&1 &
+        elif [ -f "app.R" ]; then
+            nohup Rscript -e "options(shiny.port=4994, shiny.host='0.0.0.0'); Sys.setenv(ENABLE_AI_ANALYSIS='true'); shiny::runApp('app.R')" \
+                > /home/ylab/GIST_web_all/logs/shiny/genomics_ai.log 2>&1 &
+        else
+            echo "  ❌ 未找到基因组学 AI版启动文件"
+        fi
+        echo "  基因组学 AI版已启动，日志: logs/shiny/genomics_ai.log"
+    else
+        echo "  基因组学 AI版已在运行"
+    fi
+
+    # 基础版本 - 端口4993
+    if ! lsof -i :4993 > /dev/null 2>&1; then
+        echo "  启动基因组学 基础版 (端口4993)..."
+        cd "$GENOMICS_DIR"
+        if [ -f "start_no_ai.R" ]; then
+            nohup Rscript -e "options(shiny.port=4993, shiny.host='0.0.0.0'); source('start_no_ai.R')" \
+                > /home/ylab/GIST_web_all/logs/shiny/genomics_basic.log 2>&1 &
+        elif [ -f "app.R" ]; then
+            nohup Rscript -e "options(shiny.port=4993, shiny.host='0.0.0.0'); Sys.setenv(ENABLE_AI_ANALYSIS='false'); shiny::runApp('app.R')" \
+                > /home/ylab/GIST_web_all/logs/shiny/genomics_basic.log 2>&1 &
+        else
+            echo "  ❌ 未找到基因组学 基础版启动文件"
+        fi
+        echo "  基因组学 基础版已启动，日志: logs/shiny/genomics_basic.log"
+    else
+        echo "  基因组学 基础版已在运行"
+    fi
+else
+    echo "❌ 基因组学目录不存在: $GENOMICS_DIR"
+fi
+
 echo ""
 echo "⏳ 等待5秒钟让应用启动..."
 sleep 5
@@ -270,7 +316,7 @@ sleep 5
 echo ""
 echo "📊 检查所有Shiny应用状态:"
 echo "=== 端口监听状态 ==="
-listening_ports=$(ss -tlnp | grep -E ":(4964|4966|4967|4968|4971|4972|4974|4975|4991|4992)")
+listening_ports=$(ss -tlnp | grep -E ":(4964|4966|4967|4968|4971|4972|4974|4975|4991|4992|4993|4994)")
 if [ -n "$listening_ports" ]; then
     echo "$listening_ports"
 else
@@ -279,7 +325,7 @@ fi
 
 echo ""
 echo "=== 进程状态 ==="
-running_processes=$(ps aux | grep -E "R.*496[4-8]|R.*497[1-5]|R.*499[1-2]" | grep -v grep)
+running_processes=$(ps aux | grep -E "R.*496[4-8]|R.*497[1-5]|R.*499[1-4]" | grep -v grep)
 if [ -n "$running_processes" ]; then
     echo "$running_processes"
 else
@@ -288,8 +334,8 @@ fi
 
 echo ""
 echo "=== 应用状态检查 ==="
-EXPECTED_PORTS=(4964 4966 4967 4968 4971 4972 4974 4975 4992 4991)
-EXPECTED_NAMES=("转录组学AI" "转录组学基础" "蛋白质组学基础" "蛋白质组学AI" "翻译后修饰基础" "翻译后修饰AI" "单细胞AI" "单细胞基础" "非编码AI" "非编码基础")
+EXPECTED_PORTS=(4964 4966 4967 4968 4971 4972 4974 4975 4992 4991 4994 4993)
+EXPECTED_NAMES=("转录组学AI" "转录组学基础" "蛋白质组学基础" "蛋白质组学AI" "翻译后修饰基础" "翻译后修饰AI" "单细胞AI" "单细胞基础" "非编码AI" "非编码基础" "基因组学AI" "基因组学基础")
 
 for i in "${!EXPECTED_PORTS[@]}"; do
     port=${EXPECTED_PORTS[$i]}
@@ -315,6 +361,8 @@ echo "   翻译后修饰 AI: http://117.72.75.45:4972 或 http://chatgist.online
 echo "   翻译后修饰 基础: http://117.72.75.45:4971 或 http://chatgist.online:81/posttranslational-basic/"
 echo "   非编码 AI: http://117.72.75.45:4992"
 echo "   非编码 基础: http://117.72.75.45:4991"
+echo "   基因组学 AI: http://117.72.75.45:4994 或 http://chatgist.online:81/genomics/"
+echo "   基因组学 基础: http://117.72.75.45:4993 或 http://chatgist.online:81/genomics-basic/"
 echo ""
 echo "📋 日志文件位置: logs/shiny/"
 echo "🔧 故障排除: 如果某个应用未启动，请检查对应日志文件"

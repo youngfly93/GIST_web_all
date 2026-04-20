@@ -8,11 +8,15 @@ import SingleCellIcon from '../components/icons/SingleCellIcon';
 import NcRNAIcon from '../components/icons/NcRNAIcon';
 import MiniChat from '../components/MiniChat';
 import GeneAssistant from '../components/GeneAssistant';
+import config from '../config';
 
 const Home: React.FC = () => {
   const [quickGene, setQuickGene] = useState('');
   const [aiEnabled, setAiEnabled] = useState(true);
   const [ncRnaQueryMode, setNcRnaQueryMode] = useState(false);
+  // Genomics: same UX pattern as Non-coding RNA — toggle in card top-right
+  // switches between "Enter Analysis →" (default) and "cBioPortal quick query".
+  const [genomicsQueryMode, setGenomicsQueryMode] = useState(false);
 
   const navigate = useNavigate();
 
@@ -206,44 +210,76 @@ const Home: React.FC = () => {
             </div>
 
             <div className="analysis-cards">
-            {/* Genomics */}
+            {/* Genomics — same UX pattern as Non-coding RNA: top-right toggle
+                switches between Analysis (default) and cBioPortal Query mode */}
             <div className="analysis-card-wrapper">
-              <div className="analysis-card">
+              <div className="analysis-card" style={{ position: 'relative' }}>
+                {/* Top-right mode switch: off=Analysis (default), on=Query (cBioPortal) */}
+                <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', color: '#6b7280' }}>Query</span>
+                  <label className="toggle-switch" style={{ transform: 'scale(0.85)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={genomicsQueryMode}
+                      onChange={(e) => setGenomicsQueryMode(e.target.checked)}
+                      className="toggle-input"
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+
                 <div className="card-icon">
                   <Dna size={72} color="#1C484C" />
                 </div>
                 <span>Genomics</span>
-                <div className="card-input">
-                  <input
-                    type="text"
-                    placeholder="Enter gene name (e.g., KIT)"
-                    className="gene-input"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        const gene = e.currentTarget.value.trim();
+
+                {genomicsQueryMode ? (
+                  <div className="card-input">
+                    <input
+                      type="text"
+                      placeholder="Enter gene name (e.g., KIT)"
+                      className="gene-input"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const gene = e.currentTarget.value.trim();
+                          if (gene) {
+                            const url = `https://www.cbioportal.org/results/oncoprint?cancer_study_list=gist_msk_2025%2Cgist_msk_2022%2Cgist_msk_2023&Z_SCORE_THRESHOLD=2.0&RPPA_SCORE_THRESHOLD=2.0&profileFilter=mutations%2Cstructural_variants%2Cgistic%2Ccna&case_set_id=all&gene_list=${gene}&geneset_list=%20&tab_index=tab_visualize&Action=Submit&plots_horz_selection=%7B%22selectedDataSourceOption%22%3A%22gistic%22%7D&plots_vert_selection=%7B%7D&plots_coloring_selection=%7B%7D`;
+                            window.open(url, '_blank');
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      className="card-btn"
+                      title="Quick lookup on cBioPortal (opens new tab)"
+                      onClick={(e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        const gene = input.value.trim();
                         if (gene) {
                           const url = `https://www.cbioportal.org/results/oncoprint?cancer_study_list=gist_msk_2025%2Cgist_msk_2022%2Cgist_msk_2023&Z_SCORE_THRESHOLD=2.0&RPPA_SCORE_THRESHOLD=2.0&profileFilter=mutations%2Cstructural_variants%2Cgistic%2Ccna&case_set_id=all&gene_list=${gene}&geneset_list=%20&tab_index=tab_visualize&Action=Submit&plots_horz_selection=%7B%22selectedDataSourceOption%22%3A%22gistic%22%7D&plots_vert_selection=%7B%7D&plots_coloring_selection=%7B%7D`;
                           window.open(url, '_blank');
+                        } else {
+                          alert('Please enter a gene name');
                         }
-                      }
-                    }}
-                  />
+                      }}
+                    >
+                      Query ↗ cBioPortal
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    className="card-btn"
-                    onClick={(e) => {
-                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                      const gene = input.value.trim();
-                      if (gene) {
-                        const url = `https://www.cbioportal.org/results/oncoprint?cancer_study_list=gist_msk_2025%2Cgist_msk_2022%2Cgist_msk_2023&Z_SCORE_THRESHOLD=2.0&RPPA_SCORE_THRESHOLD=2.0&profileFilter=mutations%2Cstructural_variants%2Cgistic%2Ccna&case_set_id=all&gene_list=${gene}&geneset_list=%20&tab_index=tab_visualize&Action=Submit&plots_horz_selection=%7B%22selectedDataSourceOption%22%3A%22gistic%22%7D&plots_vert_selection=%7B%7D&plots_coloring_selection=%7B%7D`;
-                        window.open(url, '_blank');
-                      } else {
-                        alert('Please enter a gene name');
-                      }
+                    className="card-btn primary"
+                    title="Open the full dbGIST Genomics analysis app"
+                    onClick={() => {
+                      const url = aiEnabled
+                        ? config.shinyUrls.genomics.ai
+                        : config.shinyUrls.genomics.noAi;
+                      window.open(url, '_blank');
                     }}
                   >
-                    Query
+                    Enter Analysis →
                   </button>
-                </div>
+                )}
               </div>
             </div>
 
@@ -257,7 +293,9 @@ const Home: React.FC = () => {
                 <button
                   className="card-btn primary"
                   onClick={() => {
-                    const url = aiEnabled ? 'http://117.72.75.45:4964/' : 'http://117.72.75.45:4966/';
+                    const url = aiEnabled
+                      ? config.shinyUrls.transcriptomics.ai
+                      : config.shinyUrls.transcriptomics.noAi;
                     window.open(url, '_blank');
                   }}
                 >
@@ -276,7 +314,9 @@ const Home: React.FC = () => {
                 <button
                   className="card-btn primary"
                   onClick={() => {
-                    const url = aiEnabled ? 'http://117.72.75.45:4968/' : 'http://117.72.75.45:4967/';
+                    const url = aiEnabled
+                      ? config.shinyUrls.proteomics.ai
+                      : config.shinyUrls.proteomics.noAi;
                     window.open(url, '_blank');
                   }}
                 >
@@ -295,7 +335,9 @@ const Home: React.FC = () => {
                 <button
                   className="card-btn primary"
                   onClick={() => {
-                    const url = aiEnabled ? 'http://117.72.75.45:4972/' : 'http://117.72.75.45:4971/';
+                    const url = aiEnabled
+                      ? config.shinyUrls.posttranslational.ai
+                      : config.shinyUrls.posttranslational.noAi;
                     window.open(url, '_blank');
                   }}
                 >
@@ -314,7 +356,9 @@ const Home: React.FC = () => {
                 <button
                   className="card-btn primary"
                   onClick={() => {
-                    const url = aiEnabled ? 'http://117.72.75.45:4974/' : 'http://117.72.75.45:4975/';
+                    const url = aiEnabled
+                      ? config.shinyUrls.singlecell.ai
+                      : config.shinyUrls.singlecell.noAi;
                     window.open(url, '_blank');
                   }}
                 >
@@ -393,7 +437,9 @@ const Home: React.FC = () => {
                   <button
                     className="card-btn primary"
                     onClick={() => {
-                      const url = aiEnabled ? 'http://117.72.75.45:4992/' : 'http://117.72.75.45:4991/';
+                      const url = aiEnabled
+                        ? config.shinyUrls.noncoding.ai
+                        : config.shinyUrls.noncoding.noAi;
                       window.open(url, '_blank');
                     }}
                   >

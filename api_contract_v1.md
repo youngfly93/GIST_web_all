@@ -175,6 +175,99 @@ Request:
 }
 ```
 
+
+## Dataset Matching, Selection, and Provenance (Current v1 Behavior)
+
+This section defines how callers should interpret multi-dataset hits in the current v1 API.
+
+### Important v1 Constraints
+
+- v1 does **not** currently expose a universal `dataset` request field for `summary`, `analysis/clinical`, `analysis/survival`, or `analysis/drug-response`.
+- `data.datasets` means **availability hits** for the queried feature. It does **not** mean every downstream analysis block used every listed dataset.
+- When exact cohort provenance matters, clients must inspect the endpoint-specific provenance fields described below.
+
+### Recommended Client Workflow
+
+1. Call `features/check` or `summary` first to enumerate matching datasets.
+2. Run the desired analysis endpoint.
+3. If the response includes explicit provenance fields such as `dataset`, `phosphosite`, `resolved_feature`, or dataset-specific statistics, display them.
+4. If the response does not include explicit cohort provenance, treat the result as a legacy bundled analysis rather than a single-cohort result.
+
+### Transcriptomics
+
+- `summary`
+  - `data.datasets` lists all matched mRNA cohorts.
+  - `data.clinical_associations` is variable-scoped and may pool predefined cohort bundles.
+  - `data.survival` returns at most one cohort per endpoint and exposes `dataset` inside each survival entry.
+  - `data.drug_resistance` in summary mode is summary-only and does not currently expose a dataset id.
+- `analysis/clinical`
+  - returns one artifact per clinical variable
+  - uses predefined variable-specific cohort bundles
+  - does not currently expose contributing dataset ids per variable
+- `analysis/survival`
+  - selects the **first** mRNA cohort in internal order that contains the gene and the requested survival endpoint
+  - returns `data.dataset`
+- `analysis/drug-response`
+  - selects the **first** configured drug-response cohort that contains both the gene and imatinib response labels
+  - exposes the selected cohort in `data.statistics.dataset`
+
+### Noncoding
+
+- `summary`
+  - `data.datasets` lists all matching datasets for the resolved RNA type
+  - `data.rna_type` reports the resolved molecule class
+  - `data.drug_resistance` uses the dedicated miRNA drug-response cohort and returns `resolved_feature`, but not a dataset id
+- `analysis/clinical`
+  - returns variable-specific artifacts for the detected RNA type
+  - uses predefined cohort bundles
+  - does not currently expose contributing dataset ids per variable
+- `analysis/drug-response`
+  - supports miRNA only
+  - uses the dedicated miRNA drug-response cohort
+  - returns `resolved_feature`, but not a dataset id
+
+### Proteomics
+
+- `summary`
+  - `data.datasets` lists all matching studies
+  - `data.survival` and `data.drug_resistance` summary blocks are driven by the Sun cohort only when the gene exists there
+- `analysis/clinical`
+  - invokes legacy clinical functions over the proteomics study list
+  - does not currently enumerate contributing studies per variable
+- `analysis/survival`
+  - fixed to the Sun cohort
+  - no request-time dataset override
+- `analysis/drug-response`
+  - fixed to the Sun cohort
+  - no request-time dataset override
+
+### Phosphoproteomics
+
+- `summary`
+  - `data.datasets` lists all protein-level availability hits
+  - protein-level queries resolve to phosphosites internally
+  - summary clinical logic uses the **first** phosphosite for the queried gene
+  - summary survival logic uses the **first eligible** phosphosite for the requested endpoint
+- `analysis/clinical`
+  - resolves the input gene to the **first** phosphosite
+  - returns `data.phosphosite`
+- `analysis/survival`
+  - chooses the **first** phosphosite with sufficient non-missing observations for the requested endpoint
+  - returns `data.phosphosite`
+  - dataset is fixed to the tumor phosphoproteomics cohort
+
+### Singlecell
+
+- `summary`
+  - `data.datasets` lists all Seurat datasets containing the feature
+- `analysis/clinical`
+  - current v1 bridge maps to the per-dataset batch-style analysis
+  - response is dataset-keyed rather than single-dataset selected
+- `jobs`
+  - preserves the requested mode (`summary`, `full`, or `render`)
+  - downstream results remain per-dataset where applicable
+
+
 ## Single-Cell Job Endpoints
 
 ### `POST /api/v1/singlecell/jobs`

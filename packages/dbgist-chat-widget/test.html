@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>dbgist-chat widget test</title></head>
+<body>
+  <h1>dbgist-chat test harness</h1>
+  <p>Expect: a floating 🤖 button bottom-right. Click to expand, type "hello", hit enter.</p>
+  <button id="trigger">simulate analyze_plot trigger</button>
+  <script src="./dist/dbgist-chat.umd.js"></script>
+  <dbgist-chat
+    backend-url="http://127.0.0.1:8000/api/chat"
+    session-id="test-session-1"
+    app-tag="test"
+    default-open="true"
+  ></dbgist-chat>
+  <script>
+    document.getElementById('trigger').onclick = () => {
+      document.querySelector('dbgist-chat').dispatchEvent(new CustomEvent('dbgist-chat-trigger', {
+        detail: {
+          plotPath: '/mnt/f/work/yang_ylab/GIST_web_all/backend/public/plots/gender_MCM7_149aa14f.png',
+          gene1: 'MCM7',
+          analysisType: 'gender',
+          autoTriggered: true
+        }
+      }));
+    };
+  </script>
+</body>
+</html>

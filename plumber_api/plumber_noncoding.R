@@ -119,8 +119,18 @@ find_dataset_indices <- function(ids = NULL, classes = NULL) {
   hits
 }
 
-subset_datasets <- function(ids = NULL, classes = NULL) {
-  dbGIST_matrix[find_dataset_indices(ids = ids, classes = classes)]
+subset_datasets <- function(ids = NULL, classes = NULL, harmonized = FALSE) {
+  datasets <- dbGIST_matrix[find_dataset_indices(ids = ids, classes = classes)]
+  if (!isTRUE(harmonized)) {
+    return(datasets)
+  }
+
+  lapply(datasets, function(ds) {
+    if (!is.null(ds$HarmonizedMatrix)) {
+      ds$Matrix <- ds$HarmonizedMatrix
+    }
+    ds
+  })
 }
 
 NONCODING_DATASET_IDS <- list(
@@ -150,12 +160,47 @@ ALL_NONCODING_ID <- c(miRNA_ID, circRNA_ID, lncRNA_ID)
 
 plot_to_base64 <- function(p, width = 800, height = 600, res = 150) {
   if (is.null(p)) return(NULL)
-  tmp <- tempfile(fileext = ".png")
-  on.exit(unlink(tmp), add = TRUE)
+  tmp_dir <- file.path(tempdir(check = TRUE), "dbgist_api_plots")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  tmp <- tempfile(tmpdir = tmp_dir, fileext = ".png")
   png(tmp, width = width, height = height, res = res)
-  tryCatch(print(p), error = function(e) NULL)
+  ok <- FALSE
+  tryCatch({
+    print(p)
+    ok <- TRUE
+  }, error = function(e) NULL)
   dev.off()
+  if (!ok || !file.exists(tmp)) return(NULL)
+  on.exit(unlink(tmp), add = TRUE)
   base64enc::base64encode(tmp)
+}
+
+mirna_alias_candidates <- function(id) {
+  id <- trimws(as.character(id))
+  cands <- c(id)
+  if (grepl("-[35]p$", id, ignore.case = TRUE)) {
+    cands <- c(cands, sub("-[35]p$", "", id, ignore.case = TRUE))
+  } else if (grepl("^hsa-", id, ignore.case = TRUE)) {
+    cands <- c(cands, paste0(id, "-5p"), paste0(id, "-3p"))
+  }
+  unique(cands[nzchar(cands)])
+}
+
+resolve_mirna_id_in_dataset <- function(id, ds) {
+  rn <- rownames(ds$Matrix)
+  if (id %in% rn) return(id)
+
+  cands <- mirna_alias_candidates(id)
+  direct <- cands[cands %in% rn]
+  if (length(direct) > 0) return(direct[1])
+
+  low_rn <- tolower(rn)
+  low_cands <- tolower(cands)
+  matched_idx <- match(low_cands, low_rn)
+  matched_idx <- matched_idx[!is.na(matched_idx)]
+  if (length(matched_idx) > 0) return(rn[matched_idx[1]])
+
+  NULL
 }
 
 #' Detect the RNA type for a given ID
@@ -246,7 +291,12 @@ invoke_noncoding_fn <- function(fn_name, id, variable, rna_type) {
   } else {
     NONCODING_FUNCTION_DATASETS[[variable]]
   }
-  db_arg <- if (!is.null(db_ids)) subset_datasets(ids = db_ids) else NULL
+  use_harmonized <- if (exists("noncoding_use_harmonized", envir = .GlobalEnv, inherits = FALSE)) {
+    isTRUE(get("noncoding_use_harmonized", envir = .GlobalEnv)(rna_type, variable))
+  } else {
+    FALSE
+  }
+  db_arg <- if (!is.null(db_ids)) subset_datasets(ids = db_ids, classes = rna_type, harmonized = use_harmonized) else NULL
 
   args <- list(ID = id)
   if (!is.null(db_arg)) args$DB <- db_arg
@@ -319,7 +369,8 @@ build_capabilities <- function() {
     notes = c(
       "current_api_is_legacy_full_mode",
       "requires_noncoding_identifier_not_protein_symbol",
-      "lncrna_currently_supports_availability_only"
+      "lncrna_currently_supports_availability_only",
+      "cross_cohort_display_prefers_harmonized_layer_when_available"
     )
   )
 }
@@ -366,10 +417,11 @@ build_summary <- function(gene = "") {
       NULL
     } else {
       ds <- dbGIST_matrix[[ds_idx]]
-      if (!(gene %in% rownames(ds$Matrix)) || !("Imatinib" %in% colnames(ds$Clinical))) {
+      resolved_gene <- if (identical(info$rna_type, "miRNA")) resolve_mirna_id_in_dataset(gene, ds) else gene
+      if (is.null(resolved_gene) || !("Imatinib" %in% colnames(ds$Clinical))) {
         return(NULL)
       }
-      values <- as.numeric(ds$Matrix[gene, ])
+      values <- as.numeric(ds$Matrix[resolved_gene, ])
       response <- ds$Clinical$Imatinib
       df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
       df <- na.omit(df)
@@ -385,6 +437,7 @@ build_summary <- function(gene = "") {
         }
 
         list(
+          resolved_feature = resolved_gene,
           auc = auc_val,
           n_samples = nrow(df)
         )
@@ -506,9 +559,19 @@ function(gene = "") {
       return(list(gene = gene, error = "dbGIST_miRNA_boxplot_roc_IM.Treat function not found"))
     }
 
-    p <- fn(ID = gene, DB = subset_datasets(ids = NONCODING_FUNCTION_DATASETS$Drug, classes = "mirna"))
+    ds_list <- subset_datasets(ids = NONCODING_FUNCTION_DATASETS$Drug, classes = "mirna")
+    if (length(ds_list) == 0) {
+      return(list(gene = gene, error = "No noncoding drug-response dataset configured"))
+    }
 
-    result <- list(gene = gene)
+    resolved_gene <- resolve_mirna_id_in_dataset(gene, ds_list[[1]])
+    if (is.null(resolved_gene)) {
+      return(list(gene = gene, error = paste0("No IM response data for ", gene)))
+    }
+
+    p <- fn(ID = resolved_gene, DB = ds_list)
+
+    result <- list(gene = gene, resolved_feature = resolved_gene)
 
     if (!is.null(p)) {
       result$plot <- plot_to_base64(p, width = 1200, height = 600)
@@ -518,8 +581,8 @@ function(gene = "") {
         ds_idx <- drug_resistance_dataset_index()
         if (length(ds_idx) > 0) {
           ds <- dbGIST_matrix[[ds_idx]]
-        if (gene %in% rownames(ds$Matrix) && "Imatinib" %in% colnames(ds$Clinical)) {
-          values <- as.numeric(ds$Matrix[gene, ])
+        if (resolved_gene %in% rownames(ds$Matrix) && "Imatinib" %in% colnames(ds$Clinical)) {
+          values <- as.numeric(ds$Matrix[resolved_gene, ])
           response <- ds$Clinical$Imatinib
           df <- data.frame(val = values, grp = response, stringsAsFactors = FALSE)
           df <- na.omit(df)

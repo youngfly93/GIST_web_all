@@ -7,18 +7,19 @@ const router = express.Router();
 router.use('/shiny', async (req, res) => {
   try {
     const path = req.originalUrl.replace('/api/proxy/shiny/', '');
-    
-    // Use local Shiny app in development, remote in production
-    const shinyBaseUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://127.0.0.1:4964'
-      : 'http://117.72.75.45/dbGIST_shiny';
+
+    const shinyBaseUrl =
+      process.env.SHINY_PROXY_BASE_URL ||
+      (process.env.NODE_ENV === 'development'
+        ? 'http://127.0.0.1:4964'
+        : 'http://127.0.0.1:4964');
     const shinyUrl = `${shinyBaseUrl}/${path}`;
-    
+
     const response = await axios.get(shinyUrl, {
       responseType: 'arraybuffer',
       headers: {
         ...req.headers,
-        host: process.env.NODE_ENV === 'development' ? '127.0.0.1' : '117.72.75.45'
+        host: new URL(shinyBaseUrl).hostname
       }
     });
 

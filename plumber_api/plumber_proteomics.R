@@ -92,11 +92,18 @@ cat("✅ Analysis functions loaded\n")
 #' Render a ggplot to base64-encoded PNG
 plot_to_base64 <- function(p, width = 800, height = 600, res = 150) {
   if (is.null(p)) return(NULL)
-  tmp <- tempfile(fileext = ".png")
-  on.exit(unlink(tmp), add = TRUE)
+  tmp_dir <- file.path(tempdir(check = TRUE), "dbgist_api_plots")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  tmp <- tempfile(tmpdir = tmp_dir, fileext = ".png")
   png(tmp, width = width, height = height, res = res)
-  tryCatch(print(p), error = function(e) NULL)
+  ok <- FALSE
+  tryCatch({
+    print(p)
+    ok <- TRUE
+  }, error = function(e) NULL)
   dev.off()
+  if (!ok || !file.exists(tmp)) return(NULL)
+  on.exit(unlink(tmp), add = TRUE)
   base64enc::base64encode(tmp)
 }
 
