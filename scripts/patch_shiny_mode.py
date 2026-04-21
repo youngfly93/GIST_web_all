@@ -116,7 +116,7 @@ def patch(path, ui_only=False, server_only=False, helpers_only=False):
             srv_anchor = sm.group(0)
             srv_inject = (
                 srv_anchor
-                + "  .mode <- .resolve_app_mode(session$clientData$url_search)\n"
+                + "  .mode <- shiny::isolate(.resolve_app_mode(session$clientData$url_search))\n"
                 + '  if (!is.null(.mode)) { enable_ai <- (.mode == "ai"); .enable_ai <- enable_ai; AI_ENABLED <- enable_ai }\n'
                 + "\n"
             )
