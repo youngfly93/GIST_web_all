@@ -33,9 +33,17 @@ HEADER
 
 emit() {
   local urlpath=$1; local port=$2; local label=$3
+  local extra=""
+  # Step 12: basic paths now rewrite to ?mode=basic so the (single) Shiny
+  # process knows to render basic UI. Subpath '/X-basic/sub/...' becomes
+  # '/sub/...?mode=basic' on the upstream side.
+  case "$urlpath" in
+    *-basic) extra="        rewrite ^/${urlpath}/?(.*)\$ /\$1?mode=basic break;" ;;
+  esac
   cat >> "$OUT" <<BLOCK
     # ${label}
     location ^~ /${urlpath}/ {
+${extra}
         proxy_pass http://127.0.0.1:${port}/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
