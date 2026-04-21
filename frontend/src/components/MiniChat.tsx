@@ -1,6 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Brain, Wrench, Loader, CheckCircle, AlertCircle, Activity as ActivityIcon, ChevronDown } from 'lucide-react';
+import { Send, Square, RotateCw, Brain, Wrench, Loader, CheckCircle, AlertCircle, Activity as ActivityIcon, ChevronDown } from 'lucide-react';
+
+// Example prompts shown in the empty state (clickable → directly send).
+const EXAMPLE_PROMPTS = [
+  'What does a KIT mutation mean for GIST prognosis?',
+  'Compare imatinib vs sunitinib resistance mechanisms',
+  'Top 10 GIST-related genes by literature count',
+  'Explain CD117 staining in plain English',
+];
 
 // Agent 活动追踪类型
 interface AgentActivity {
@@ -202,6 +210,7 @@ interface Message {
   image?: string;
   activities?: AgentActivity[];
   isStreaming?: boolean;
+  hadError?: boolean;  // assistant message: true if generation failed
 }
 
 interface MiniChatProps {
@@ -258,7 +267,7 @@ const normalizeAssistantContent = (content: string) =>
   content.replace(/\r\n/g, '\n').replace(/\u0000/g, '').replace(/\n{3,}/g, '\n\n');
 
 const MiniChat: React.FC<MiniChatProps> = ({
-  placeholder = "Enter your question, AI assistant will answer...",
+  placeholder = "Ask anything about GIST genes, mutations, or analysis... (Shift+Enter for new line)",
   height = "400px"
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -267,6 +276,16 @@ const MiniChat: React.FC<MiniChatProps> = ({
   const [currentActivity, setCurrentActivity] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastUserInputRef = useRef<string>('');
+
+  const autosizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  };
 
   const updateAssistantMessage = (
     messageIndex: number,
@@ -329,6 +348,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
   const parseSSEStream = async (
     url: string,
     body: object,
+    signal: AbortSignal,
     onEvent: (event: { type: string; data: Record<string, unknown> }) => void,
     onDone: () => void,
     onError: (error: Error) => void
@@ -338,6 +358,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal,
       });
 
       if (!response.ok) {
@@ -398,17 +419,39 @@ const MiniChat: React.FC<MiniChatProps> = ({
 
       onDone();
     } catch (error) {
+      // User-initiated abort → treat as graceful end, not as error.
+      if ((error as Error).name === 'AbortError') {
+        onDone();
+        return;
+      }
       onError(error as Error);
     }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleStop = () => {
+    abortControllerRef.current?.abort();
+  };
 
-    const userMessage = { role: 'user' as const, content: input };
-    const currentInput = input;
+  const handleRetry = () => {
+    const last = lastUserInputRef.current;
+    if (!last || isLoading) return;
+    // Remove the failed assistant message (always the last entry in messages).
+    setMessages(prev => prev.slice(0, -1));
+    void handleSend(last);
+  };
+
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
+    if (!text || isLoading) return;
+
+    lastUserInputRef.current = text;
+    const userMessage = { role: 'user' as const, content: text };
     setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    if (overrideText === undefined) {
+      setInput('');
+      // Reset textarea height after clearing input.
+      requestAnimationFrame(autosizeTextarea);
+    }
     setIsLoading(true);
     setCurrentActivity('');
 
@@ -428,10 +471,13 @@ const MiniChat: React.FC<MiniChatProps> = ({
     let currentContent = '';
     let currentImage: string | undefined;
     const activities: AgentActivity[] = [];
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     await parseSSEStream(
       '/api/chat/stream',
-      { message: currentInput },
+      { message: text },
+      controller.signal,
       // onEvent
       (event) => {
         const timestamp = Date.now();
@@ -439,16 +485,16 @@ const MiniChat: React.FC<MiniChatProps> = ({
           activities.push(activity);
         };
 
-        // 实时更新活动状态
+        // Realtime activity status (English-only for UI consistency).
         if (event.type === 'thinking') {
-          setCurrentActivity(`🧠 ${event.data.content || '正在分析...'}`);
+          setCurrentActivity(`🧠 ${event.data.content || 'Thinking...'}`);
           pushActivity({
             type: 'thinking',
             timestamp,
             data: { content: String(event.data.content || '') }
           });
         } else if (event.type === 'tool_call') {
-          setCurrentActivity(`🔧 调用工具: ${event.data.tool}`);
+          setCurrentActivity(`🔧 Calling tool: ${event.data.tool}`);
           pushActivity({
             type: 'tool_call',
             timestamp,
@@ -459,7 +505,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
             }
           });
         } else if (event.type === 'tool_executing') {
-          setCurrentActivity(`⏳ ${event.data.message || '执行中...'}`);
+          setCurrentActivity(`⏳ ${event.data.message || 'Running...'}`);
           pushActivity({
             type: 'tool_executing',
             timestamp,
@@ -470,7 +516,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
           });
         } else if (event.type === 'tool_result') {
           const success = event.data.success !== false;
-          setCurrentActivity(`${success ? '✅' : '❌'} ${event.data.message || (success ? '完成' : '失败')}`);
+          setCurrentActivity(`${success ? '✅' : '❌'} ${event.data.message || (success ? 'Done' : 'Failed')}`);
           currentImage = event.data.image ? (event.data.image as string) : currentImage;
           pushActivity({
             type: 'tool_result',
@@ -482,16 +528,16 @@ const MiniChat: React.FC<MiniChatProps> = ({
             }
           });
         } else if (event.type === 'text') {
-          setCurrentActivity('📝 生成回复中...');
+          setCurrentActivity('📝 Generating reply...');
           if (event.data.content) {
             currentContent = event.data.content as string;
           }
         } else if (event.type === 'error') {
-          setCurrentActivity(`❌ ${event.data.message || '发生错误'}`);
+          setCurrentActivity(`❌ ${event.data.message || 'An error occurred'}`);
           pushActivity({
             type: 'error',
             timestamp,
-            data: { message: String(event.data.message || '发生错误') }
+            data: { message: String(event.data.message || 'An error occurred') }
           });
         }
 
@@ -505,6 +551,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
       },
       // onDone
       () => {
+        abortControllerRef.current = null;
         setIsLoading(false);
         setCurrentActivity('');
         updateAssistantMessage(messageIndex, {
@@ -516,11 +563,12 @@ const MiniChat: React.FC<MiniChatProps> = ({
       (error) => {
         console.error('SSE stream error:', error);
         setCurrentActivity('');
+        abortControllerRef.current = null;
 
         void (async () => {
           if (!currentContent) {
             try {
-              await sendNonStreamingFallback(currentInput, messageIndex, activities);
+              await sendNonStreamingFallback(text, messageIndex, activities);
               setIsLoading(false);
               return;
             } catch (fallbackError) {
@@ -531,6 +579,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
           updateAssistantMessage(messageIndex, {
             content: 'Sorry, an error occurred. Please try again.',
             isStreaming: false,
+            hadError: true,
             activities: [...activities, {
               type: 'error',
               timestamp: Date.now(),
@@ -558,8 +607,25 @@ const MiniChat: React.FC<MiniChatProps> = ({
       <div className="mini-chat-messages" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="mini-chat-welcome">
-            <p>👋 Hello! I'm the dbGIST Assistant</p>
-            <p>Feel free to ask me any questions</p>
+            <p style={{ fontWeight: 600, color: 'var(--clr-gray-700)' }}>👋 Hi, I'm dbGIST Assistant.</p>
+            <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+              Ask anything — gene panels, mutation impact, drug response, plot interpretation.
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--clr-gray-500)', marginTop: '0.75rem' }}>
+              Try one of these:
+            </p>
+            <div className="mini-chat-suggestions">
+              {EXAMPLE_PROMPTS.map(prompt => (
+                <button
+                  key={prompt}
+                  type="button"
+                  className="mini-chat-suggestion"
+                  onClick={() => void handleSend(prompt)}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           messages.map((message, index) => {
@@ -599,11 +665,21 @@ const MiniChat: React.FC<MiniChatProps> = ({
                     <div className="mini-message-image">
                       <img
                         src={message.image}
-                        alt="分析结果"
+                        alt="Analysis figure"
                         onClick={() => window.open(message.image, '_blank')}
-                        title="点击查看大图"
+                        title="Click to enlarge"
                       />
                     </div>
+                  )}
+                  {message.role === 'assistant' && message.hadError && !isLoading && (
+                    <button
+                      type="button"
+                      className="mini-retry-button"
+                      onClick={handleRetry}
+                      title="Retry the last question"
+                    >
+                      <RotateCw size={12} /> Retry
+                    </button>
                   )}
                 </div>
               </div>
@@ -622,28 +698,45 @@ const MiniChat: React.FC<MiniChatProps> = ({
             color: '#666'
           }}>
             {getActivityIcon()}
-            <span>{currentActivity || 'AI 正在处理...'}</span>
+            <span>{currentActivity || 'Working...'}</span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       <div className="mini-chat-input">
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+          onChange={(e) => { setInput(e.target.value); autosizeTextarea(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void handleSend();
+            }
+          }}
           placeholder={placeholder}
           disabled={isLoading}
+          rows={1}
         />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim() || isLoading}
-          className="mini-send-button"
-        >
-          <Send size={18} />
-        </button>
+        {isLoading ? (
+          <button
+            onClick={handleStop}
+            className="mini-send-button mini-stop-button"
+            title="Stop generating"
+          >
+            <Square size={16} />
+          </button>
+        ) : (
+          <button
+            onClick={() => void handleSend()}
+            disabled={!input.trim()}
+            className="mini-send-button"
+            title="Send (Enter)"
+          >
+            <Send size={18} />
+          </button>
+        )}
       </div>
     </div>
   );

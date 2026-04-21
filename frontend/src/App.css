@@ -1972,7 +1972,59 @@ body {
 .mini-chat-welcome {
   text-align: center;
   color: var(--clr-gray-500);
-  padding: 2rem;
+  padding: 1.25rem 1rem;
+}
+
+.mini-chat-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  text-align: left;
+}
+
+.mini-chat-suggestion {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  color: var(--clr-gray-700);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+  line-height: 1.35;
+}
+
+.mini-chat-suggestion:hover {
+  background: var(--clr-primary-500);
+  color: white;
+  border-color: var(--clr-primary-500);
+}
+
+.mini-chat-suggestion:active {
+  transform: translateY(1px);
+}
+
+.mini-retry-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  background: transparent;
+  border: 1px solid var(--clr-gray-300, #d1d5db);
+  color: var(--clr-gray-600, #4b5563);
+  border-radius: 0.35rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.mini-retry-button:hover {
+  background: var(--clr-gray-100, #f3f4f6);
+  border-color: var(--clr-gray-400, #9ca3af);
+  color: var(--clr-gray-900, #111827);
 }
 
 .mini-message {
@@ -2114,7 +2166,8 @@ body {
   border-top: 1px solid rgba(59, 130, 246, 0.15);
 }
 
-.mini-chat-input input {
+.mini-chat-input input,
+.mini-chat-input textarea {
   flex: 1;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--clr-gray-200);
@@ -2122,9 +2175,16 @@ body {
   font-size: 0.875rem;
   outline: none;
   transition: border-color 0.3s;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  min-height: 38px;
+  max-height: 140px;
+  overflow-y: auto;
 }
 
-.mini-chat-input input:focus {
+.mini-chat-input input:focus,
+.mini-chat-input textarea:focus {
   border-color: var(--clr-primary-500);
 }
 
@@ -2139,6 +2199,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: flex-end;
+  min-height: 38px;
 }
 
 .mini-send-button:hover {
@@ -2148,6 +2210,14 @@ body {
 .mini-send-button:disabled {
   background: var(--clr-gray-500);
   cursor: not-allowed;
+}
+
+.mini-stop-button {
+  background: #ef4444;
+}
+
+.mini-stop-button:hover {
+  background: #dc2626;
 }
 
 .full-chat-link {
