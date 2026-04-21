@@ -3,32 +3,14 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import html2canvas from 'html2canvas';
 import {
-  Bot, User, Camera, BarChart3, X, Image, Hand, Target, Lightbulb,
-  Brain, Wrench, Loader, CheckCircle, AlertCircle, Activity, ChevronDown
+  Bot, User, Camera, BarChart3, X, Image, Hand, Target, Lightbulb
 } from 'lucide-react';
-
-// Agent 活动追踪类型
-interface AgentActivity {
-  type: 'thinking' | 'tool_call' | 'tool_executing' | 'tool_result' | 'text' | 'error';
-  timestamp: number;
-  data: {
-    content?: string;
-    tool?: string;
-    args?: Record<string, unknown>;
-    message?: string;
-    image?: string;
-    success?: boolean;
-    delta?: string;
-    id?: string;
-  };
-}
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   image?: string;
-  activities?: AgentActivity[];  // Agent 活动日志
-  isStreaming?: boolean;         // 是否正在流式传输
+  isStreaming?: boolean;
 }
 
 const floatingMarkdownComponents = {
@@ -66,192 +48,12 @@ const floatingMarkdownComponents = {
 const normalizeAssistantContent = (content: string) =>
   content.replace(/\r\n/g, '\n').replace(/\u0000/g, '').replace(/\n{3,}/g, '\n\n');
 
-// ActivityPanel 组件 - 显示 Agent 活动日志
-const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolean }> = ({
-  activities,
-  isStreaming
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!activities || activities.length === 0) return null;
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'thinking': return <Brain size={14} />;
-      case 'tool_call': return <Wrench size={14} />;
-      case 'tool_executing': return <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />;
-      case 'tool_result': return <CheckCircle size={14} />;
-      case 'error': return <AlertCircle size={14} />;
-      default: return <Activity size={14} />;
-    }
-  };
-
-  const getActivityColor = (type: string, success?: boolean) => {
-    switch (type) {
-      case 'thinking': return '#8B5CF6';
-      case 'tool_call': return '#3B82F6';
-      case 'tool_executing': return '#F59E0B';
-      case 'tool_result': return success !== false ? '#10B981' : '#EF4444';
-      case 'error': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
-
-  const getActivityLabel = (activity: AgentActivity) => {
-    switch (activity.type) {
-      case 'thinking':
-        return activity.data.content || 'Thinking...';
-      case 'tool_call':
-        return `Tool: ${activity.data.tool}`;
-      case 'tool_executing':
-        return activity.data.message || 'Running...';
-      case 'tool_result':
-        return activity.data.success !== false
-          ? (activity.data.message || 'Done')
-          : `Failed: ${activity.data.message}`;
-      case 'error':
-        return `Error: ${activity.data.message}`;
-      default:
-        return '';
-    }
-  };
-
-  // 过滤掉 text 类型的活动，只显示有意义的活动
-  const displayActivities = activities.filter(a => a.type !== 'text');
-  if (displayActivities.length === 0) return null;
-
-  return (
-    <div style={{
-      marginBottom: '8px',
-      borderRadius: '8px',
-      backgroundColor: '#F9FAFB',
-      border: '1px solid #E5E7EB',
-      overflow: 'hidden',
-      fontSize: '12px'
-    }}>
-      {/* 可折叠头部 */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          width: '100%',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          border: 'none',
-          backgroundColor: 'transparent',
-          cursor: 'pointer',
-          color: '#6B7280'
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Activity size={14} />
-          Agent activity ({displayActivities.length})
-          {isStreaming && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-        </span>
-        <ChevronDown
-          size={14}
-          style={{
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
-            transition: 'transform 0.2s'
-          }}
-        />
-      </button>
-
-      {/* 活动列表 */}
-      {isExpanded && (
-        <div style={{
-          padding: '0 12px 12px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px'
-        }}>
-          {displayActivities.map((activity, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                padding: '6px 8px',
-                backgroundColor: 'white',
-                borderRadius: '6px',
-                borderLeft: `3px solid ${getActivityColor(activity.type, activity.data.success)}`,
-                fontSize: '11px'
-              }}
-            >
-              <span style={{
-                color: getActivityColor(activity.type, activity.data.success),
-                marginTop: '2px',
-                flexShrink: 0
-              }}>
-                {getActivityIcon(activity.type)}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#374151', marginBottom: '2px', wordBreak: 'break-word' }}>
-                  {getActivityLabel(activity)}
-                </div>
-                {/* 工具调用参数 */}
-                {activity.type === 'tool_call' && activity.data.args && (
-                  <pre style={{
-                    margin: 0,
-                    padding: '4px 6px',
-                    backgroundColor: '#F3F4F6',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    overflow: 'auto',
-                    maxHeight: '80px',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all'
-                  }}>
-                    {JSON.stringify(activity.data.args, null, 2)}
-                  </pre>
-                )}
-                {/* 工具结果图片缩略图 */}
-                {activity.type === 'tool_result' && activity.data.image && (
-                  <div style={{ marginTop: '4px' }}>
-                    <img
-                      src={activity.data.image as string}
-                      alt="Analysis figure"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: '80px',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => window.open(activity.data.image as string, '_blank')}
-                    />
-                  </div>
-                )}
-              </div>
-              <span style={{
-                color: '#9CA3AF',
-                fontSize: '10px',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}>
-                {new Date(activity.timestamp).toLocaleTimeString('zh-CN', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit'
-                })}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const FloatingChat: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamMode, setStreamMode] = useState(true);
-  // 当前实时活动状态
-  const [currentActivity, setCurrentActivity] = useState<string>('');
   const [dragOver, setDragOver] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -285,8 +87,7 @@ const FloatingChat: React.FC = () => {
 
   const sendNonStreamingFallback = async (
     currentInput: string,
-    messageIndex: number,
-    activities: AgentActivity[]
+    messageIndex: number
   ) => {
     const response = await axios.post('/api/chat', {
       message: currentInput,
@@ -296,7 +97,6 @@ const FloatingChat: React.FC = () => {
     updateAssistantMessage(messageIndex, {
       content: typeof response.data.reply === 'string' ? response.data.reply : '',
       image: typeof response.data.image === 'string' ? response.data.image : undefined,
-      activities: [...activities],
       isStreaming: false
     });
   };
@@ -660,12 +460,10 @@ const FloatingChat: React.FC = () => {
     setLoading(true);
 
     if (useStream) {
-      // SSE 流式处理 - 带活动追踪
-      // 创建带活动追踪的流式消息
+      // Plain SSE / chunked stream — only `event: text` (or raw chunks) carries content.
       const streamingMessage: Message = {
         role: 'assistant',
         content: '',
-        activities: [],
         isStreaming: true
       };
 
@@ -676,75 +474,34 @@ const FloatingChat: React.FC = () => {
         return newMessages;
       });
 
-      // 用于累积状态
       let currentContent = '';
-      let currentImage: string | undefined;
-      const activities: AgentActivity[] = [];
 
       await parseSSEStream(
         '/api/chat/stream',
         { message: currentInput },
         // onEvent
         (event) => {
-          const activity: AgentActivity = {
-            type: event.type as AgentActivity['type'],
-            timestamp: Date.now(),
-            data: event.data as AgentActivity['data']
-          };
-
-          // 只记录非 text 类型的活动
-          if (event.type !== 'text' && event.type !== 'done') {
-            activities.push(activity);
-          }
-
-          // 实时更新当前活动状态（显示在 loading 指示器中）
-          if (event.type === 'thinking') {
-            setCurrentActivity(`🧠 ${event.data.content || 'Thinking...'}`);
-          } else if (event.type === 'tool_call') {
-            setCurrentActivity(`🔧 Calling tool: ${event.data.tool}`);
-          } else if (event.type === 'tool_executing') {
-            setCurrentActivity(`⏳ ${event.data.message || 'Running...'}`);
-          } else if (event.type === 'tool_result') {
-            setCurrentActivity(`✅ ${event.data.message || 'Done'}`);
-          } else if (event.type === 'text') {
-            setCurrentActivity('📝 Generating reply...');
-          }
-
-          // 更新内容
           if (event.type === 'text' && event.data.content) {
             currentContent = event.data.content as string;
+            updateAssistantMessage(messageIndex, {
+              content: currentContent,
+              isStreaming: true
+            });
           }
-
-          // 更新图片 - 使用相对路径，由 Vite 代理处理
-          if (event.type === 'tool_result' && event.data.image) {
-            currentImage = event.data.image as string;
-          }
-
-          // 更新消息状态
-          updateAssistantMessage(messageIndex, {
-            content: currentContent,
-            image: currentImage,
-            activities: [...activities],
-            isStreaming: true
-          });
         },
         // onDone
         () => {
-          updateAssistantMessage(messageIndex, {
-            isStreaming: false
-          });
+          updateAssistantMessage(messageIndex, { isStreaming: false });
           setLoading(false);
-          setCurrentActivity(''); // 清除活动状态
         },
         // onError
         (error) => {
           console.error('SSE stream error:', error);
-          setCurrentActivity(''); // 清除活动状态
 
           void (async () => {
             if (!currentContent) {
               try {
-                await sendNonStreamingFallback(currentInput, messageIndex, activities);
+                await sendNonStreamingFallback(currentInput, messageIndex);
                 setLoading(false);
                 return;
               } catch (fallbackError) {
@@ -754,12 +511,7 @@ const FloatingChat: React.FC = () => {
 
             updateAssistantMessage(messageIndex, {
               content: 'Sorry, the service is temporarily unavailable. Please try again later.',
-              isStreaming: false,
-              activities: [...activities, {
-                type: 'error',
-                timestamp: Date.now(),
-                data: { message: error.message }
-              }]
+              isStreaming: false
             });
             setLoading(false);
           })();
@@ -1062,14 +814,6 @@ const FloatingChat: React.FC = () => {
               lineHeight: '1.4',
               border: msg.role === 'assistant' ? '1px solid #e0e0e0' : 'none'
             }}>
-              {/* Agent 活动面板 */}
-              {msg.role === 'assistant' && msg.activities && msg.activities.length > 0 && (
-                <ActivityPanel
-                  activities={msg.activities}
-                  isStreaming={msg.isStreaming || false}
-                />
-              )}
-
               {/* 显示图片 */}
               {msg.image && (
                 <div style={{ marginBottom: '8px' }}>
@@ -1135,8 +879,15 @@ const FloatingChat: React.FC = () => {
               alignItems: 'center',
               gap: '8px'
             }}>
-              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              {currentActivity || (streamMode ? 'Working...' : 'Thinking...')}
+              <span style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#4a90e2',
+                animation: 'pulse 1.4s ease-in-out infinite'
+              }} />
+              {streamMode ? 'Working...' : 'Thinking...'}
             </div>
           </div>
         )}

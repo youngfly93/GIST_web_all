@@ -1,4 +1,4 @@
-/* Agent Activity Panel Animations */
+/* Loading / spin / pulse animations */
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -6,6 +6,20 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.85); }
+}
+
+.mini-loading-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--clr-primary-500, #4a90e2);
+  animation: pulse 1.4s ease-in-out infinite;
 }
 
 /* Global Body Styles */

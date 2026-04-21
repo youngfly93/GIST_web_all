@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Square, RotateCw, Brain, Wrench, Loader, CheckCircle, AlertCircle, Activity as ActivityIcon, ChevronDown } from 'lucide-react';
+import { Send, Square, RotateCw } from 'lucide-react';
 
 // Example prompts shown in the empty state (clickable → directly send).
 const EXAMPLE_PROMPTS = [
@@ -10,207 +10,12 @@ const EXAMPLE_PROMPTS = [
   'Explain CD117 staining in plain English',
 ];
 
-// Agent 活动追踪类型
-interface AgentActivity {
-  type: 'thinking' | 'tool_call' | 'tool_executing' | 'tool_result' | 'text' | 'error';
-  timestamp: number;
-  data: {
-    content?: string;
-    tool?: string;
-    args?: Record<string, unknown>;
-    message?: string;
-    image?: string;
-    success?: boolean;
-    delta?: string;
-    id?: string;
-  };
-}
-
-// ActivityPanel 组件 - 显示 Agent 活动日志
-const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolean }> = ({
-  activities,
-  isStreaming
-}) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!activities || activities.length === 0) return null;
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'thinking': return <Brain size={14} />;
-      case 'tool_call': return <Wrench size={14} />;
-      case 'tool_executing': return <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />;
-      case 'tool_result': return <CheckCircle size={14} />;
-      case 'error': return <AlertCircle size={14} />;
-      default: return <ActivityIcon size={14} />;
-    }
-  };
-
-  const getActivityColor = (type: string, success?: boolean) => {
-    switch (type) {
-      case 'thinking': return '#8B5CF6';
-      case 'tool_call': return '#3B82F6';
-      case 'tool_executing': return '#F59E0B';
-      case 'tool_result': return success !== false ? '#10B981' : '#EF4444';
-      case 'error': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
-
-  const getActivityLabel = (activity: AgentActivity) => {
-    switch (activity.type) {
-      case 'thinking':
-        return activity.data.content || 'Thinking...';
-      case 'tool_call':
-        return `Tool: ${activity.data.tool}`;
-      case 'tool_executing':
-        return activity.data.message || 'Running...';
-      case 'tool_result':
-        return activity.data.success !== false
-          ? (activity.data.message || 'Done')
-          : `Failed: ${activity.data.message}`;
-      case 'error':
-        return `Error: ${activity.data.message}`;
-      default:
-        return '';
-    }
-  };
-
-  // 过滤掉 text 类型的活动，只显示有意义的活动
-  const displayActivities = activities.filter(a => a.type !== 'text');
-  if (displayActivities.length === 0) return null;
-
-  return (
-    <div style={{
-      marginBottom: '8px',
-      borderRadius: '8px',
-      backgroundColor: '#F9FAFB',
-      border: '1px solid #E5E7EB',
-      overflow: 'hidden',
-      fontSize: '12px'
-    }}>
-      {/* 可折叠头部 */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          width: '100%',
-          padding: '8px 10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          border: 'none',
-          backgroundColor: 'transparent',
-          cursor: 'pointer',
-          color: '#6B7280'
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <ActivityIcon size={14} />
-          Agent activity ({displayActivities.length})
-          {isStreaming && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-        </span>
-        <ChevronDown
-          size={14}
-          style={{
-            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
-            transition: 'transform 0.2s'
-          }}
-        />
-      </button>
-
-      {/* 活动列表 */}
-      {isExpanded && (
-        <div style={{
-          padding: '0 10px 10px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '6px'
-        }}>
-          {displayActivities.map((activity, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '8px',
-                padding: '6px 8px',
-                backgroundColor: 'white',
-                borderRadius: '6px',
-                borderLeft: `3px solid ${getActivityColor(activity.type, activity.data.success)}`,
-                fontSize: '11px'
-              }}
-            >
-              <span style={{
-                color: getActivityColor(activity.type, activity.data.success),
-                marginTop: '2px',
-                flexShrink: 0
-              }}>
-                {getActivityIcon(activity.type)}
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#374151', marginBottom: '2px', wordBreak: 'break-word' }}>
-                  {getActivityLabel(activity)}
-                </div>
-                {/* 工具调用参数 */}
-                {activity.type === 'tool_call' && activity.data.args && (
-                  <pre style={{
-                    margin: 0,
-                    padding: '4px 6px',
-                    backgroundColor: '#F3F4F6',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    overflow: 'auto',
-                    maxHeight: '80px',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-all'
-                  }}>
-                    {JSON.stringify(activity.data.args, null, 2)}
-                  </pre>
-                )}
-                {/* 工具结果图片缩略图 */}
-                {activity.type === 'tool_result' && activity.data.image && (
-                  <div style={{ marginTop: '4px' }}>
-                    <img
-                      src={activity.data.image as string}
-                      alt="Analysis figure"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: '80px',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => window.open(activity.data.image as string, '_blank')}
-                    />
-                  </div>
-                )}
-              </div>
-              <span style={{
-                color: '#9CA3AF',
-                fontSize: '10px',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}>
-                {new Date(activity.timestamp).toLocaleTimeString('zh-CN', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit'
-                })}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   image?: string;
-  activities?: AgentActivity[];
   isStreaming?: boolean;
-  hadError?: boolean;  // assistant message: true if generation failed
+  hadError?: boolean;
 }
 
 interface MiniChatProps {
@@ -273,7 +78,6 @@ const MiniChat: React.FC<MiniChatProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentActivity, setCurrentActivity] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -306,8 +110,7 @@ const MiniChat: React.FC<MiniChatProps> = ({
 
   const sendNonStreamingFallback = async (
     currentInput: string,
-    messageIndex: number,
-    activities: AgentActivity[]
+    messageIndex: number
   ) => {
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -328,7 +131,6 @@ const MiniChat: React.FC<MiniChatProps> = ({
     updateAssistantMessage(messageIndex, {
       content: typeof data.reply === 'string' ? data.reply : '',
       image: typeof data.image === 'string' ? data.image : undefined,
-      activities: [...activities],
       isStreaming: false
     });
   };
@@ -342,14 +144,16 @@ const MiniChat: React.FC<MiniChatProps> = ({
   useEffect(() => {
     const timer = setTimeout(scrollToBottom, 50);
     return () => clearTimeout(timer);
-  }, [messages, currentActivity]);
+  }, [messages]);
 
-  // SSE 流解析
-  const parseSSEStream = async (
+  // Stream plain text from the backend SSE/chunked endpoint.
+  // Backend emits either raw text chunks or `event: text` SSE events; both
+  // end up as a single growing string we pipe into the assistant message.
+  const streamReply = async (
     url: string,
     body: object,
     signal: AbortSignal,
-    onEvent: (event: { type: string; data: Record<string, unknown> }) => void,
+    onChunk: (fullText: string) => void,
     onDone: () => void,
     onError: (error: Error) => void
   ) => {
@@ -373,19 +177,22 @@ const MiniChat: React.FC<MiniChatProps> = ({
         throw new Error('No response body');
       }
 
+      // Plain chunked response — concatenate as we go.
       if (!contentType.includes('text/event-stream')) {
-        let rawContent = '';
+        let raw = '';
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          rawContent += decoder.decode(value, { stream: true });
-          onEvent({ type: 'text', data: { content: rawContent } });
+          raw += decoder.decode(value, { stream: true });
+          onChunk(raw);
         }
         onDone();
         return;
       }
 
+      // Server-Sent Events — only `event: text` carries content; others ignored.
       let buffer = '';
+      let textContent = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -396,30 +203,36 @@ const MiniChat: React.FC<MiniChatProps> = ({
         buffer = lines.pop() || '';
 
         let currentEvent = '';
-        let currentData = '';
-
         for (const line of lines) {
           if (line.startsWith('event: ')) {
             currentEvent = line.slice(7).trim();
           } else if (line.startsWith('data: ')) {
-            currentData = line.slice(6);
-            if (currentEvent && currentData) {
+            const dataStr = line.slice(6);
+            if (currentEvent === 'text') {
               try {
-                const parsed = JSON.parse(currentData);
-                onEvent({ type: currentEvent, data: parsed });
-              } catch (e) {
-                console.error('Failed to parse SSE data:', e);
+                const parsed = JSON.parse(dataStr);
+                if (typeof parsed.content === 'string') {
+                  textContent = parsed.content;
+                  onChunk(textContent);
+                }
+              } catch {
+                /* ignore malformed event */
               }
-              currentEvent = '';
-              currentData = '';
+            } else if (currentEvent === 'error') {
+              try {
+                const parsed = JSON.parse(dataStr);
+                throw new Error(String(parsed.message || 'Stream error'));
+              } catch (e) {
+                throw e instanceof Error ? e : new Error('Stream error');
+              }
             }
+            currentEvent = '';
           }
         }
       }
 
       onDone();
     } catch (error) {
-      // User-initiated abort → treat as graceful end, not as error.
       if ((error as Error).name === 'AbortError') {
         onDone();
         return;
@@ -435,7 +248,6 @@ const MiniChat: React.FC<MiniChatProps> = ({
   const handleRetry = () => {
     const last = lastUserInputRef.current;
     if (!last || isLoading) return;
-    // Remove the failed assistant message (always the last entry in messages).
     setMessages(prev => prev.slice(0, -1));
     void handleSend(last);
   };
@@ -449,19 +261,15 @@ const MiniChat: React.FC<MiniChatProps> = ({
     setMessages(prev => [...prev, userMessage]);
     if (overrideText === undefined) {
       setInput('');
-      // Reset textarea height after clearing input.
       requestAnimationFrame(autosizeTextarea);
     }
     setIsLoading(true);
-    setCurrentActivity('');
 
-    // 添加空的 AI 消息
     let messageIndex = -1;
     setMessages(prev => {
       const newMessages = [...prev, {
         role: 'assistant' as const,
         content: '',
-        activities: [],
         isStreaming: true
       }];
       messageIndex = newMessages.length - 1;
@@ -469,83 +277,18 @@ const MiniChat: React.FC<MiniChatProps> = ({
     });
 
     let currentContent = '';
-    let currentImage: string | undefined;
-    const activities: AgentActivity[] = [];
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    await parseSSEStream(
+    await streamReply(
       '/api/chat/stream',
       { message: text },
       controller.signal,
-      // onEvent
-      (event) => {
-        const timestamp = Date.now();
-        const pushActivity = (activity: AgentActivity) => {
-          activities.push(activity);
-        };
-
-        // Realtime activity status (English-only for UI consistency).
-        if (event.type === 'thinking') {
-          setCurrentActivity(`🧠 ${event.data.content || 'Thinking...'}`);
-          pushActivity({
-            type: 'thinking',
-            timestamp,
-            data: { content: String(event.data.content || '') }
-          });
-        } else if (event.type === 'tool_call') {
-          setCurrentActivity(`🔧 Calling tool: ${event.data.tool}`);
-          pushActivity({
-            type: 'tool_call',
-            timestamp,
-            data: {
-              tool: String(event.data.tool || ''),
-              args: (event.data.args as Record<string, unknown>) || undefined,
-              id: event.data.id ? String(event.data.id) : undefined
-            }
-          });
-        } else if (event.type === 'tool_executing') {
-          setCurrentActivity(`⏳ ${event.data.message || 'Running...'}`);
-          pushActivity({
-            type: 'tool_executing',
-            timestamp,
-            data: {
-              message: String(event.data.message || ''),
-              tool: event.data.tool ? String(event.data.tool) : undefined
-            }
-          });
-        } else if (event.type === 'tool_result') {
-          const success = event.data.success !== false;
-          setCurrentActivity(`${success ? '✅' : '❌'} ${event.data.message || (success ? 'Done' : 'Failed')}`);
-          currentImage = event.data.image ? (event.data.image as string) : currentImage;
-          pushActivity({
-            type: 'tool_result',
-            timestamp,
-            data: {
-              message: String(event.data.message || ''),
-              image: event.data.image ? String(event.data.image) : undefined,
-              success
-            }
-          });
-        } else if (event.type === 'text') {
-          setCurrentActivity('📝 Generating reply...');
-          if (event.data.content) {
-            currentContent = event.data.content as string;
-          }
-        } else if (event.type === 'error') {
-          setCurrentActivity(`❌ ${event.data.message || 'An error occurred'}`);
-          pushActivity({
-            type: 'error',
-            timestamp,
-            data: { message: String(event.data.message || 'An error occurred') }
-          });
-        }
-
-        // 更新消息内容
+      // onChunk
+      (fullText) => {
+        currentContent = fullText;
         updateAssistantMessage(messageIndex, {
-          content: currentContent,
-          image: currentImage,
-          activities: [...activities],
+          content: fullText,
           isStreaming: true
         });
       },
@@ -553,22 +296,17 @@ const MiniChat: React.FC<MiniChatProps> = ({
       () => {
         abortControllerRef.current = null;
         setIsLoading(false);
-        setCurrentActivity('');
-        updateAssistantMessage(messageIndex, {
-          isStreaming: false,
-          activities: [...activities]
-        });
+        updateAssistantMessage(messageIndex, { isStreaming: false });
       },
       // onError
       (error) => {
-        console.error('SSE stream error:', error);
-        setCurrentActivity('');
+        console.error('Stream error:', error);
         abortControllerRef.current = null;
 
         void (async () => {
           if (!currentContent) {
             try {
-              await sendNonStreamingFallback(text, messageIndex, activities);
+              await sendNonStreamingFallback(text, messageIndex);
               setIsLoading(false);
               return;
             } catch (fallbackError) {
@@ -579,27 +317,12 @@ const MiniChat: React.FC<MiniChatProps> = ({
           updateAssistantMessage(messageIndex, {
             content: 'Sorry, an error occurred. Please try again.',
             isStreaming: false,
-            hadError: true,
-            activities: [...activities, {
-              type: 'error',
-              timestamp: Date.now(),
-              data: { message: error.message }
-            }]
+            hadError: true
           });
           setIsLoading(false);
         })();
       }
     );
-  };
-
-  // 获取活动图标
-  const getActivityIcon = () => {
-    if (currentActivity.startsWith('🧠')) return <Brain size={14} className="activity-icon thinking" />;
-    if (currentActivity.startsWith('🔧')) return <Wrench size={14} className="activity-icon tool" />;
-    if (currentActivity.startsWith('⏳')) return <Loader size={14} className="activity-icon executing" style={{ animation: 'spin 1s linear infinite' }} />;
-    if (currentActivity.startsWith('✅')) return <CheckCircle size={14} className="activity-icon success" />;
-    if (currentActivity.startsWith('❌')) return <AlertCircle size={14} className="activity-icon error" />;
-    return <Loader size={14} className="activity-icon" style={{ animation: 'spin 1s linear infinite' }} />;
   };
 
   return (
@@ -629,12 +352,10 @@ const MiniChat: React.FC<MiniChatProps> = ({
           </div>
         ) : (
           messages.map((message, index) => {
-            // 跳过正在加载时的空消息气泡
             const isLastMessage = index === messages.length - 1;
             const isEmptyAssistant = message.role === 'assistant'
               && !message.content
-              && !message.image
-              && (!message.activities || message.activities.length === 0);
+              && !message.image;
             if (isLoading && isLastMessage && isEmptyAssistant) {
               return null;
             }
@@ -642,12 +363,6 @@ const MiniChat: React.FC<MiniChatProps> = ({
             return (
               <div key={index} className={`mini-message ${message.role}`}>
                 <div className="mini-message-content">
-                  {message.role === 'assistant' && message.activities && message.activities.length > 0 && (
-                    <ActivityPanel
-                      activities={message.activities}
-                      isStreaming={message.isStreaming || false}
-                    />
-                  )}
                   {message.role === 'assistant' ? (
                     message.isStreaming ? (
                       <div className="mini-streaming-text">
@@ -697,8 +412,8 @@ const MiniChat: React.FC<MiniChatProps> = ({
             fontSize: '13px',
             color: '#666'
           }}>
-            {getActivityIcon()}
-            <span>{currentActivity || 'Working...'}</span>
+            <span className="mini-loading-dot" />
+            <span>Working...</span>
           </div>
         )}
         <div ref={messagesEndRef} />
