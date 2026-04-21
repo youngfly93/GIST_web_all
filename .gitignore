@@ -228,3 +228,5 @@ dbgist*.conf
 !dbgist.conf
 !start_all_shiny.legacy.sh
 !stop_all_shiny.legacy.sh
+!nginx/dbgist.shiny.locations.conf
+!scripts/gen_nginx_shiny_locations.sh
