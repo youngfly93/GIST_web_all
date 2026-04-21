@@ -33,30 +33,33 @@ const config = {
     return `${buildOrigin()}/api`;
   })(),
 
+  // Step 13 (2026-04-21): basic mode now uses single Shiny instance with ?mode=basic.
+  // Old per-omics basic ports (4966/4967/4971/4975/4991/4993) decommissioned.
+  // Legacy /<omics>-basic/ paths still work via nginx rewrite (Step 12).
   shinyUrls: {
     transcriptomics: {
       ai: buildShinyUrl('/transcriptomics/', 'http://127.0.0.1:4964/'),
-      noAi: buildShinyUrl('/transcriptomics-basic/', 'http://127.0.0.1:4966/'),
+      noAi: buildShinyUrl('/transcriptomics/?mode=basic', 'http://127.0.0.1:4964/?mode=basic'),
     },
     proteomics: {
       ai: buildShinyUrl('/proteomics/', 'http://127.0.0.1:4968/'),
-      noAi: buildShinyUrl('/proteomics-basic/', 'http://127.0.0.1:4967/'),
+      noAi: buildShinyUrl('/proteomics/?mode=basic', 'http://127.0.0.1:4968/?mode=basic'),
     },
     posttranslational: {
       ai: buildShinyUrl('/posttranslational/', 'http://127.0.0.1:4972/'),
-      noAi: buildShinyUrl('/posttranslational-basic/', 'http://127.0.0.1:4971/'),
+      noAi: buildShinyUrl('/posttranslational/?mode=basic', 'http://127.0.0.1:4972/?mode=basic'),
     },
     singlecell: {
       ai: buildShinyUrl('/singlecell/', 'http://127.0.0.1:4974/'),
-      noAi: buildShinyUrl('/singlecell-basic/', 'http://127.0.0.1:4975/'),
+      noAi: buildShinyUrl('/singlecell/?mode=basic', 'http://127.0.0.1:4974/?mode=basic'),
     },
     noncoding: {
       ai: buildShinyUrl('/noncoding/', 'http://127.0.0.1:4992/'),
-      noAi: buildShinyUrl('/noncoding-basic/', 'http://127.0.0.1:4991/'),
+      noAi: buildShinyUrl('/noncoding/?mode=basic', 'http://127.0.0.1:4992/?mode=basic'),
     },
     genomics: {
       ai: buildShinyUrl('/genomics/', 'http://127.0.0.1:4994/'),
-      noAi: buildShinyUrl('/genomics-basic/', 'http://127.0.0.1:4993/'),
+      noAi: buildShinyUrl('/genomics/?mode=basic', 'http://127.0.0.1:4994/?mode=basic'),
     },
   },
 };
