@@ -2,8 +2,19 @@ import express from 'express';
 import axios from 'axios';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
+// Per-IP rate limit for the /api/chat POST endpoints (Step 9, 2026-04-21).
+// /health is excluded. SSE streams: each new connection counts as 1 request.
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,    // 1 minute
+  max: 30,                // 30 requests per IP per minute
+  standardHeaders: true,  // RateLimit-* headers
+  legacyHeaders: false,   // disable X-RateLimit-* headers
+  message: { error: 'rate_limited', message: '请求过于频繁，请稍后再试 (limit: 30 req/min/IP).' },
+});
+
 
 // Accepts either a base64 data URI (existing R/frontend usage) or a local file
 // path (new: Shiny R clients pass the PNG path directly — Node reads it and
@@ -162,7 +173,7 @@ const streamProviderResponse = (upstream, onDelta) => new Promise((resolve, reje
   upstream.on('error', reject);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', chatLimiter, async (req, res) => {
   try {
     const { message, image, stream = false } = req.body;
     const appTag = req.get('x-dbgist-app') || 'unknown';
@@ -263,7 +274,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.post('/stream', async (req, res) => {
+router.post('/stream', chatLimiter, async (req, res) => {
   try {
     const { message } = req.body;
 
