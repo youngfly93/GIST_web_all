@@ -226,3 +226,5 @@ dbgist*.conf
 !scripts/check_ports.sh
 !chatgist_port81.conf
 !dbgist.conf
+!start_all_shiny.legacy.sh
+!stop_all_shiny.legacy.sh
