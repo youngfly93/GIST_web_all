@@ -51,11 +51,22 @@ const normalize = (s: string) =>
 const resolveImageSrc = (p?: string): string | undefined => {
   if (!p) return undefined;
   if (p.startsWith('data:') || p.startsWith('http://') || p.startsWith('https://')) return p;
+  // Already a server-rooted path? Pass through unchanged.
   const isWebPrefix = p.startsWith('/api/') || p.startsWith('/plots/') ||
-                      p.startsWith('/assets/') || p.startsWith('/static/');
+                      p.startsWith('/assets/') || p.startsWith('/static/') ||
+                      p.startsWith('/');
   if (isWebPrefix) return p;
-  const fname = p.split('/').pop()?.split('\\').pop() || p;
-  return `./${fname}`;
+  // Absolute filesystem path (e.g. '/home/.../plot.png' caught above; on Windows
+  // 'C:\...' falls through here). Strip to filename so we don't leak local paths.
+  if (/^[A-Za-z]:[\\/]/.test(p)) {
+    const fname = p.split('/').pop()?.split('\\').pop() || p;
+    return `./${fname}`;
+  }
+  // Otherwise treat as a relative path (e.g. 'extwww/plot_X.png') and let the
+  // browser resolve it against the current page URL. Crucially, do NOT strip
+  // sub-directories — Shiny's addResourcePath() mounts assets under prefixes
+  // like 'extwww/' / 'protwww/' and we must keep them.
+  return `./${p}`;
 };
 
 const labelForAnalysis = (a?: string): string => {
