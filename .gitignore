@@ -219,3 +219,10 @@ dbgist*.conf
 # ========================================
 *.backup.*
 *.sh.backup.*
+
+# ========================================
+# VENDORED OPS (whitelist exceptions)
+# ========================================
+!scripts/check_ports.sh
+!chatgist_port81.conf
+!dbgist.conf

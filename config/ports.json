@@ -1,0 +1,50 @@
+{
+  "_doc": "Single source of truth for GIST_web_all port assignments. Edited by hand. Consumed by ecosystem.shiny.config.cjs, scripts/check_ports.sh, and (future) nginx/frontend generators. Created 2026-04-21.",
+  "backend": {
+    "node": 8001
+  },
+  "plumber": {
+    "transcriptomics": 5980,
+    "noncoding":       5981,
+    "proteomics":      5982,
+    "phospho":         5983,
+    "singlecell":      5984
+  },
+  "shiny": {
+    "transcriptomics": {
+      "ai_port": 4964,
+      "cwd": "/home/ylab/GIST_Transcriptome",
+      "launch": ["-e", "options(shiny.port=4964, shiny.host='0.0.0.0'); source('start_ai.R')"]
+    },
+    "proteomics": {
+      "ai_port": 4968,
+      "cwd": "/home/ylab/GIST_Protemics",
+      "launch": ["-e", "options(shiny.port=4968, shiny.host='0.0.0.0'); if(file.exists('app_ai.R')){shiny::runApp('app_ai.R')}else{shiny::runApp('app.R')}"]
+    },
+    "phospho": {
+      "ai_port": 4972,
+      "cwd": "/home/ylab/GIST_Phosphoproteomics",
+      "launch": ["start_ai.R"]
+    },
+    "singlecell": {
+      "ai_port": 4974,
+      "cwd": "/home/ylab/GIST_SingleCell",
+      "launch": ["-e", "options(shiny.port=4974, shiny.host='0.0.0.0'); source('start_ai.R')"],
+      "max_memory_restart": "8G"
+    },
+    "noncoding": {
+      "ai_port": 4992,
+      "cwd": "/home/ylab/GIST_noncoding",
+      "launch": ["-e", "options(shiny.port=4992, shiny.host='0.0.0.0'); source('start_ai.R')"]
+    },
+    "genomics": {
+      "ai_port": 4994,
+      "cwd": "/home/ylab/GIST_Genomics",
+      "launch": ["-e", "options(shiny.port=4994, shiny.host='0.0.0.0'); source('start_ai.R')"]
+    }
+  },
+  "_basic_decommissioned": {
+    "_doc": "Removed 2026-04-21 — basic versions had no users. Old ports listed for reference only.",
+    "transcriptomics": 4966, "proteomics": 4967, "phospho": 4971, "singlecell": 4975, "noncoding": 4991, "genomics": 4993
+  }
+}
