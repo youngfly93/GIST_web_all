@@ -45,7 +45,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
             boxShadow: currentPage === 'main' ? 'none' : '0 4px 12px rgba(74, 144, 226, 0.3)',
             transform: currentPage === 'main' ? 'scale(0.95)' : 'scale(1)'
           }}
-          title="返回dbGIST主页"
+          title="Back to dbGIST home"
           onMouseEnter={(e) => {
             if (currentPage !== 'main') {
               e.currentTarget.style.transform = 'scale(1.05)';
@@ -58,7 +58,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
           }}
         >
           <span style={{ fontSize: '20px' }}>←</span>
-          dbGIST 主页
+          dbGIST Home
         </button>
 
         {/* 中央 - 页面标题 */}
@@ -114,7 +114,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
               color: currentPage === 'database' ? '#4a90e2' : '#666',
               fontSize: '20px'
             }}>
-              数据库
+              Database
             </span>
             <div style={{
               width: '16px',
@@ -147,7 +147,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
             boxShadow: currentPage === 'database' ? 'none' : '0 4px 12px rgba(74, 144, 226, 0.3)',
             transform: currentPage === 'database' ? 'scale(0.95)' : 'scale(1)'
           }}
-          title="前往GIST数据库"
+          title="Go to GIST database"
           onMouseEnter={(e) => {
             if (currentPage !== 'database') {
               e.currentTarget.style.transform = 'scale(1.05)';
@@ -159,7 +159,7 @@ const PageNavigator: React.FC<PageNavigatorProps> = ({ currentPage, onPageChange
             }
           }}
         >
-          GIST 数据库
+          GIST Database
           <span style={{ fontSize: '20px' }}>→</span>
         </button>
       </div>

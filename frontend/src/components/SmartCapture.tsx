@@ -86,12 +86,12 @@ const SmartCapture: React.FC<SmartCaptureProps> = ({ onCapture }) => {
           {isCapturing ? (
             <>
               <Camera size={16} style={{ display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-              等待截图...
+              Waiting for screenshot...
             </>
           ) : (
             <>
               <Target size={16} />
-              智能分析图表
+              Smart chart analysis
             </>
           )}
         </button>
@@ -114,12 +114,12 @@ const SmartCapture: React.FC<SmartCaptureProps> = ({ onCapture }) => {
           boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)'
         }}>
           <div style={{ fontSize: '48px', marginBottom: '20px' }}><Camera size={48} /></div>
-          <h3 style={{ marginBottom: '15px' }}>请截取图表</h3>
+          <h3 style={{ marginBottom: '15px' }}>Please capture the chart</h3>
           <p style={{ lineHeight: '1.6', marginBottom: '20px' }}>
-            1. 使用截图工具截取R Shiny中的图表<br/>
+            1. Use a screenshot tool to capture the R Shiny chart<br/>
             <span style={{ color: '#4a90e2' }}>Mac: Cmd + Shift + 4</span><br/>
             <span style={{ color: '#4a90e2' }}>Windows: Win + Shift + S</span><br/><br/>
-            2. 截图后系统会自动检测并分析
+            2. After capture, the system will detect and analyze automatically
           </p>
           <div style={{ 
             backgroundColor: 'rgba(74, 144, 226, 0.2)', 
@@ -127,7 +127,7 @@ const SmartCapture: React.FC<SmartCaptureProps> = ({ onCapture }) => {
             borderRadius: '6px',
             marginBottom: '15px'
           }}>
-            <Sparkles size={16} style={{display: 'inline', marginRight: '4px'}} /> 正在监听剪贴板，截图后会自动分析
+            <Sparkles size={16} style={{display: 'inline', marginRight: '4px'}} /> Listening to clipboard — screenshots will be analyzed automatically
           </div>
           <button
             onClick={() => {
@@ -144,7 +144,7 @@ const SmartCapture: React.FC<SmartCaptureProps> = ({ onCapture }) => {
               fontSize: '12px'
             }}
           >
-            取消
+            Cancel
           </button>
         </div>
       )}

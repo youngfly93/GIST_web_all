@@ -79,7 +79,7 @@ const AIChat: React.FC = () => {
         console.error('Stream chat error:', error);
         const errorMessage: Message = { 
           role: 'assistant', 
-          content: '抱歉，流式服务暂时不可用，请稍后重试。'
+          content: 'Sorry, the streaming service is temporarily unavailable. Please try again later.'
         };
         setMessages(prev => [...prev, errorMessage]);
       } finally {
@@ -100,7 +100,7 @@ const AIChat: React.FC = () => {
         setMessages(prev => [...prev, aiMessage]);
       } catch (error: any) {
         console.error('Chat error:', error);
-        const errorContent = error.response?.data?.error || '抱歉，服务暂时不可用，请稍后重试。';
+        const errorContent = error.response?.data?.error || 'Sorry, the service is temporarily unavailable. Please try again later.';
         const errorDetails = error.response?.data?.details;
         
         const errorMessage: Message = { 
@@ -116,8 +116,8 @@ const AIChat: React.FC = () => {
 
   return (
     <div className="chat-container">
-      <h1>GIST辅助智能助手</h1>
-      <p className="page-description">协助了解胃肠道间质瘤（GIST）相关知识</p>
+      <h1>dbGIST AI Assistant</h1>
+      <p className="page-description">Ask anything about gastrointestinal stromal tumors (GIST) — gene panels, mutations, drug response, and more.</p>
       
       <div className="stream-toggle" style={{
         display: 'flex',
@@ -145,7 +145,7 @@ const AIChat: React.FC = () => {
             fontWeight: '500',
             color: '#374151'
           }}>
-            流式输出
+            Streaming
           </span>
           {streamMode ? (
             <CheckCircle size={18} color="#10B981" />

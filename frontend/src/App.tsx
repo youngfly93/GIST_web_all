@@ -31,7 +31,7 @@ function App() {
         </main>
         <FloatingChat />
         <footer className="footer">
-          <p>&copy; 2024 ChatGIST - 基因信息智能助手</p>
+          <p>&copy; 2024 dbGIST — Gene Information Intelligent Assistant</p>
         </footer>
       </div>
     </Router>

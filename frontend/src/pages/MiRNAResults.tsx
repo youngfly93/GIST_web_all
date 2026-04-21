@@ -36,10 +36,10 @@ const MiRNAResults: React.FC = () => {
         const data = await response.json();
         setResults(data.results || []);
       } else {
-        setError('查询失败，请稍后重试');
+        setError('Query failed, please try again later');
       }
     } catch (err) {
-      setError('网络错误，请检查连接');
+      setError('Network error — please check your connection');
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,7 @@ const MiRNAResults: React.FC = () => {
       <div className="mirna-results-container">
         <div className="loading-spinner">
           <div className="spinner"></div>
-          <p>正在查询 {gene} 相关的 miRNA 数据...</p>
+          <p>Querying miRNA data for {gene}...</p>
         </div>
       </div>
     );
@@ -72,16 +72,16 @@ const MiRNAResults: React.FC = () => {
         <div className="header-top">
           <Link to="/" className="back-button">
             <ArrowLeft size={20} />
-            返回首页
+            Back to home
           </Link>
-          <h1>miRNA 查询结果</h1>
+          <h1>miRNA query results</h1>
         </div>
-        
+
         <div className="query-info">
-          <h2>基因: <span className="gene-name">{gene}</span></h2>
+          <h2>Gene: <span className="gene-name">{gene}</span></h2>
           <p className="result-count">
-            找到 <strong>{filteredResults.length}</strong> 条相关的 miRNA 记录
-            {filteredResults.length !== results.length && ` (共 ${results.length} 条)`}
+            Found <strong>{filteredResults.length}</strong> related miRNA records
+            {filteredResults.length !== results.length && ` (of ${results.length} total)`}
           </p>
         </div>
 
@@ -91,7 +91,7 @@ const MiRNAResults: React.FC = () => {
             <Search size={16} />
             <input
               type="text"
-              placeholder="搜索 miRNA ID 或实验方法..."
+              placeholder="Search miRNA ID or experiment method..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -100,7 +100,7 @@ const MiRNAResults: React.FC = () => {
           <div className="filter-box">
             <Filter size={16} />
             <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="all">所有证据类型</option>
+              <option value="all">All evidence types</option>
               {evidenceTypes.map(type => (
                 <option key={type} value={type}>{type}</option>
               ))}
@@ -113,14 +113,14 @@ const MiRNAResults: React.FC = () => {
         {error && (
           <div className="error-message">
             <p>{error}</p>
-            <button onClick={fetchMiRNAData}>重试</button>
+            <button onClick={fetchMiRNAData}>Retry</button>
           </div>
         )}
 
         {!error && filteredResults.length === 0 && (
           <div className="no-results">
-            <p>未找到匹配的 miRNA 数据</p>
-            <Link to="/" className="try-again-link">尝试其他基因</Link>
+            <p>No matching miRNA data found</p>
+            <Link to="/" className="try-again-link">Try another gene</Link>
           </div>
         )}
 
@@ -130,11 +130,11 @@ const MiRNAResults: React.FC = () => {
               <thead>
                 <tr>
                   <th>miRNA ID</th>
-                  <th>证据类型</th>
-                  <th>实验方法</th>
+                  <th>Evidence type</th>
+                  <th>Experiment method</th>
                   <th>miRTarBase ID</th>
-                  <th>参考文献</th>
-                  <th>操作</th>
+                  <th>Reference</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,7 +174,7 @@ const MiRNAResults: React.FC = () => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="external-link"
-                        title="查看 miRBase 详情"
+                        title="View miRBase details"
                       >
                         <ExternalLink size={16} />
                       </a>

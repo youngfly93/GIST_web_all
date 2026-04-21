@@ -60,17 +60,17 @@ const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolea
   const getActivityLabel = (activity: AgentActivity) => {
     switch (activity.type) {
       case 'thinking':
-        return activity.data.content || '正在思考...';
+        return activity.data.content || 'Thinking...';
       case 'tool_call':
-        return `调用工具: ${activity.data.tool}`;
+        return `Tool: ${activity.data.tool}`;
       case 'tool_executing':
-        return activity.data.message || '执行中...';
+        return activity.data.message || 'Running...';
       case 'tool_result':
         return activity.data.success !== false
-          ? (activity.data.message || '执行完成')
-          : `失败: ${activity.data.message}`;
+          ? (activity.data.message || 'Done')
+          : `Failed: ${activity.data.message}`;
       case 'error':
-        return `错误: ${activity.data.message}`;
+        return `Error: ${activity.data.message}`;
       default:
         return '';
     }
@@ -106,7 +106,7 @@ const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolea
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <ActivityIcon size={14} />
-          Agent 活动 ({displayActivities.length})
+          Agent activity ({displayActivities.length})
           {isStreaming && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
         </span>
         <ChevronDown
@@ -172,7 +172,7 @@ const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolea
                   <div style={{ marginTop: '4px' }}>
                     <img
                       src={activity.data.image as string}
-                      alt="分析结果"
+                      alt="Analysis figure"
                       style={{
                         maxWidth: '100%',
                         maxHeight: '80px',

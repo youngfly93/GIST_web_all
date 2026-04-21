@@ -52,11 +52,11 @@ const NcRNAResults: React.FC = () => {
         setResults(data.results || []);
       } else {
         console.error('API响应错误:', response.status, response.statusText);
-        setError('查询失败，请稍后重试');
+        setError('Query failed, please try again later');
       }
     } catch (err) {
-      console.error('API调用异常:', err);
-      setError('网络错误，请检查连接');
+      console.error('API call exception:', err);
+      setError('Network error — please check your connection');
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ const NcRNAResults: React.FC = () => {
       <div className="mirna-results-container">
         <div className="loading-spinner">
           <div className="spinner"></div>
-          <p>正在查询 {gene} 相关的 {getTypeTitle()} 数据...</p>
+          <p>Querying {getTypeTitle()} data for {gene}...</p>
         </div>
       </div>
     );
@@ -112,16 +112,16 @@ const NcRNAResults: React.FC = () => {
         <div className="header-top">
           <Link to="/" className="back-button">
             <ArrowLeft size={20} />
-            返回首页
+            Back to home
           </Link>
-          <h1>{getTypeTitle()} 查询结果</h1>
+          <h1>{getTypeTitle()} query results</h1>
         </div>
-        
+
         <div className="query-info">
-          <h2>基因: <span className="gene-name">{gene}</span></h2>
+          <h2>Gene: <span className="gene-name">{gene}</span></h2>
           <p className="result-count">
-            找到 <strong>{filteredResults.length}</strong> 条相关的 {getTypeTitle()} 记录
-            {filteredResults.length !== results.length && ` (共 ${results.length} 条)`}
+            Found <strong>{filteredResults.length}</strong> related {getTypeTitle()} records
+            {filteredResults.length !== results.length && ` (of ${results.length} total)`}
           </p>
         </div>
 
@@ -131,7 +131,7 @@ const NcRNAResults: React.FC = () => {
             <Search size={16} />
             <input
               type="text"
-              placeholder={`搜索 ${getTypeTitle()} ID 或实验方法...`}
+              placeholder={`Search ${getTypeTitle()} ID or experiment method...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -141,7 +141,7 @@ const NcRNAResults: React.FC = () => {
             <Filter size={16} />
             <select value={filter} onChange={(e) => setFilter(e.target.value)}>
               <option value="all">
-                {type === 'miRNA' ? '所有证据类型' : '所有物种'}
+                {type === 'miRNA' ? 'All evidence types' : 'All species'}
               </option>
               {filterOptions.map(option => (
                 <option key={option} value={option}>{option}</option>
@@ -155,14 +155,14 @@ const NcRNAResults: React.FC = () => {
         {error && (
           <div className="error-message">
             <p>{error}</p>
-            <button onClick={fetchNcRNAData}>重试</button>
+            <button onClick={fetchNcRNAData}>Retry</button>
           </div>
         )}
 
         {!error && filteredResults.length === 0 && (
           <div className="no-results">
-            <p>未找到匹配的 {getTypeTitle()} 数据</p>
-            <Link to="/" className="try-again-link">尝试其他基因</Link>
+            <p>No matching {getTypeTitle()} data found</p>
+            <Link to="/" className="try-again-link">Try another gene</Link>
           </div>
         )}
 
@@ -174,20 +174,20 @@ const NcRNAResults: React.FC = () => {
                   <th>{getTypeTitle()} ID</th>
                   {type === 'miRNA' ? (
                     <>
-                      <th>证据类型</th>
-                      <th>实验方法</th>
+                      <th>Evidence type</th>
+                      <th>Experiment method</th>
                       <th>miRTarBase ID</th>
                     </>
                   ) : (
                     <>
                       <th>ncRNA ID</th>
-                      <th>描述</th>
-                      <th>实验方法</th>
-                      <th>物种</th>
+                      <th>Description</th>
+                      <th>Experiment method</th>
+                      <th>Species</th>
                     </>
                   )}
-                  <th>参考文献</th>
-                  <th>操作</th>
+                  <th>Reference</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -252,7 +252,7 @@ const NcRNAResults: React.FC = () => {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="external-link"
-                        title={`查看 ${getTypeTitle()} 详情`}
+                        title={`View ${getTypeTitle()} details`}
                       >
                         <ExternalLink size={16} />
                       </a>

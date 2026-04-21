@@ -100,17 +100,17 @@ const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolea
   const getActivityLabel = (activity: AgentActivity) => {
     switch (activity.type) {
       case 'thinking':
-        return activity.data.content || '正在思考...';
+        return activity.data.content || 'Thinking...';
       case 'tool_call':
-        return `调用工具: ${activity.data.tool}`;
+        return `Tool: ${activity.data.tool}`;
       case 'tool_executing':
-        return activity.data.message || '执行中...';
+        return activity.data.message || 'Running...';
       case 'tool_result':
         return activity.data.success !== false
-          ? (activity.data.message || '执行完成')
-          : `失败: ${activity.data.message}`;
+          ? (activity.data.message || 'Done')
+          : `Failed: ${activity.data.message}`;
       case 'error':
-        return `错误: ${activity.data.message}`;
+        return `Error: ${activity.data.message}`;
       default:
         return '';
     }
@@ -146,7 +146,7 @@ const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolea
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Activity size={14} />
-          Agent 活动 ({displayActivities.length})
+          Agent activity ({displayActivities.length})
           {isStreaming && <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} />}
         </span>
         <ChevronDown
@@ -212,7 +212,7 @@ const ActivityPanel: React.FC<{ activities: AgentActivity[]; isStreaming: boolea
                   <div style={{ marginTop: '4px' }}>
                     <img
                       src={activity.data.image as string}
-                      alt="分析结果"
+                      alt="Analysis figure"
                       style={{
                         maxWidth: '100%',
                         maxHeight: '80px',
@@ -312,7 +312,7 @@ const FloatingChat: React.FC = () => {
       // 添加用户消息
       const userMessage: Message = { 
         role: 'user', 
-        content: '我截取了R Shiny数据库中的图表，请帮我分析', 
+        content: 'I captured a chart from the R Shiny database — please help me analyze it.',
         image: imageData 
       };
       setMessages(prev => [...prev, userMessage]);
@@ -341,7 +341,7 @@ const FloatingChat: React.FC = () => {
   // 处理图片文件
   const handleImageFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('请选择图片文件');
+      alert('Please select an image file');
       return;
     }
     
@@ -349,7 +349,7 @@ const FloatingChat: React.FC = () => {
       const base64 = await fileToBase64(file);
       const userMessage: Message = { 
         role: 'user', 
-        content: '请分析这个GIST相关的图表', 
+        content: 'Please analyze this GIST-related chart',
         image: base64 
       };
       setMessages(prev => [...prev, userMessage]);
@@ -358,7 +358,7 @@ const FloatingChat: React.FC = () => {
       sendImageAnalysis(base64);
     } catch (error) {
       console.error('文件处理失败:', error);
-      alert('图片处理失败，请重试');
+      alert('Image processing failed — please try again');
     }
   };
 
@@ -385,7 +385,7 @@ const FloatingChat: React.FC = () => {
     if (imageFile) {
       handleImageFile(imageFile);
     } else {
-      alert('请拖拽图片文件');
+      alert('Please drop an image file');
     }
   };
 
@@ -423,7 +423,7 @@ const FloatingChat: React.FC = () => {
       // 提示用户等待
       const waitMessage: Message = { 
         role: 'user', 
-        content: '正在截取数据库页面，请稍候...' 
+        content: 'Capturing database page, please wait...'
       };
       setMessages(prev => [...prev, waitMessage]);
 
@@ -451,7 +451,7 @@ const FloatingChat: React.FC = () => {
             placeholder.style.alignItems = 'center';
             placeholder.style.justifyContent = 'center';
             placeholder.style.border = '2px dashed #ccc';
-            placeholder.innerHTML = '<div style="text-align: center; color: #666;"><h3>R Shiny 数据库区域</h3><p>请手动截图此区域的图表</p></div>';
+            placeholder.innerHTML = '<div style="text-align: center; color: #666;"><h3>R Shiny database area</h3><p>Please screenshot this area manually</p></div>';
             iframe.parentNode?.replaceChild(placeholder, iframe);
           });
         }
@@ -463,7 +463,7 @@ const FloatingChat: React.FC = () => {
       // 添加用户消息  
       const userMessage: Message = { 
         role: 'user', 
-        content: '我截取了当前页面，请帮我分析其中的GIST相关内容', 
+        content: 'I captured the current page — please help me analyze its GIST-related content.',
         image: base64Image 
       };
       setMessages(prev => [...prev, userMessage]);
@@ -471,7 +471,7 @@ const FloatingChat: React.FC = () => {
       // 发送提示消息
       const tipMessage: Message = { 
         role: 'assistant', 
-        content: '我看到了页面截图。由于技术限制，iframe中的R Shiny内容无法直接捕获。\n\n请您：\n1. 使用系统截图工具（Mac: Cmd+Shift+4, Win: Win+Shift+S）\n2. 截取数据库中的具体图表\n3. 按Ctrl+V粘贴到这里\n\n我将为您提供专业的GIST图表分析。' 
+        content: 'I can see the page screenshot. Due to browser limitations, R Shiny content inside an iframe cannot be captured directly.\n\nPlease:\n1. Use your system screenshot tool (Mac: Cmd+Shift+4, Windows: Win+Shift+S)\n2. Capture the specific chart from the database\n3. Press Ctrl+V to paste it here\n\nI will then provide professional GIST chart analysis.'
       };
       setMessages(prev => [...prev, tipMessage]);
       
@@ -480,7 +480,7 @@ const FloatingChat: React.FC = () => {
       
       const errorMessage: Message = { 
         role: 'assistant', 
-        content: '截图遇到问题。建议您使用以下方式：\n\n**快速截图方法：**\n• Mac: Cmd + Shift + 4 选择区域截图\n• Windows: Win + Shift + S 选择区域截图\n• 截图后直接Ctrl+V粘贴到这里\n\n或者从数据库Download菜单下载图片后拖拽进来。' 
+        content: 'Screenshot capture failed. Try one of these instead:\n\n**Quick screenshot methods:**\n• Mac: Cmd + Shift + 4 (select an area)\n• Windows: Win + Shift + S (select an area)\n• Then press Ctrl+V to paste it here\n\nOr download the image from the database Download menu and drag it in.'
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -493,7 +493,7 @@ const FloatingChat: React.FC = () => {
     setLoading(true);
     
     try {
-      const analysisPrompt = "请分析这个GIST相关的图表。包括：1. 图表类型和数据特征 2. 主要发现和趋势 3. 对GIST研究的意义 4. 可能的临床应用";
+      const analysisPrompt = "Please analyze this GIST-related chart. Cover: 1. Chart type and data characteristics  2. Main findings and trends  3. Significance for GIST research  4. Possible clinical applications";
       
       if (streamMode) {
         // 流式处理图片分析
@@ -565,7 +565,7 @@ const FloatingChat: React.FC = () => {
       console.error('图片分析错误:', error);
       const errorMessage: Message = { 
         role: 'assistant', 
-        content: '抱歉，图片分析服务暂时不可用。请确保图片清晰可读，或稍后重试。'
+        content: 'Sorry, the image analysis service is temporarily unavailable. Make sure the image is clear and readable, or try again later.'
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -699,15 +699,15 @@ const FloatingChat: React.FC = () => {
 
           // 实时更新当前活动状态（显示在 loading 指示器中）
           if (event.type === 'thinking') {
-            setCurrentActivity(`🧠 ${event.data.content || '正在分析...'}`);
+            setCurrentActivity(`🧠 ${event.data.content || 'Thinking...'}`);
           } else if (event.type === 'tool_call') {
-            setCurrentActivity(`🔧 调用工具: ${event.data.tool}`);
+            setCurrentActivity(`🔧 Calling tool: ${event.data.tool}`);
           } else if (event.type === 'tool_executing') {
-            setCurrentActivity(`⏳ ${event.data.message || '执行中...'}`);
+            setCurrentActivity(`⏳ ${event.data.message || 'Running...'}`);
           } else if (event.type === 'tool_result') {
-            setCurrentActivity(`✅ ${event.data.message || '完成'}`);
+            setCurrentActivity(`✅ ${event.data.message || 'Done'}`);
           } else if (event.type === 'text') {
-            setCurrentActivity('📝 生成回复中...');
+            setCurrentActivity('📝 Generating reply...');
           }
 
           // 更新内容
@@ -753,7 +753,7 @@ const FloatingChat: React.FC = () => {
             }
 
             updateAssistantMessage(messageIndex, {
-              content: '抱歉，服务暂时不可用，请稍后重试。',
+              content: 'Sorry, the service is temporarily unavailable. Please try again later.',
               isStreaming: false,
               activities: [...activities, {
                 type: 'error',
@@ -784,7 +784,7 @@ const FloatingChat: React.FC = () => {
         setMessages(prev => [...prev, aiMessage]);
       } catch (error: any) {
         console.error('Chat error:', error);
-        const errorContent = error.response?.data?.error || '抱歉，服务暂时不可用，请稍后重试。';
+        const errorContent = error.response?.data?.error || 'Sorry, the service is temporarily unavailable. Please try again later.';
         
         const errorMessage: Message = { 
           role: 'assistant', 
@@ -835,7 +835,7 @@ const FloatingChat: React.FC = () => {
             e.currentTarget.style.transform = 'scale(1)';
             e.currentTarget.style.boxShadow = '0 6px 20px rgba(74, 144, 226, 0.4)';
           }}
-          title="打开GIST AI助手"
+          title="Open GIST AI Assistant"
         >
           <Bot size={24} />
         </button>
@@ -876,8 +876,8 @@ const FloatingChat: React.FC = () => {
         }}>
           <Bot size={20} />
           <div>
-            <div style={{ fontWeight: 'bold', fontSize: '16px' }}>GIST AI助手</div>
-            <div style={{ fontSize: '12px', opacity: 0.9 }}>随时为您解答GIST问题</div>
+            <div style={{ fontWeight: 'bold', fontSize: '16px' }}>GIST AI Assistant</div>
+            <div style={{ fontSize: '12px', opacity: 0.9 }}>Ready to answer your GIST questions</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -894,9 +894,9 @@ const FloatingChat: React.FC = () => {
               cursor: capturing || loading ? 'not-allowed' : 'pointer',
               fontWeight: 'bold'
             }}
-            title="尝试截图分析"
+            title="Capture and analyze"
           >
-            {capturing ? <><Camera size={12} />...</> : <><BarChart3 size={12} />分析</>}
+            {capturing ? <><Camera size={12} />...</> : <><BarChart3 size={12} />Analyze</>}
           </button>
           
           <div style={{
@@ -905,7 +905,7 @@ const FloatingChat: React.FC = () => {
             gap: '5px',
             fontSize: '11px'
           }}>
-            <span>流式</span>
+            <span>Stream</span>
             <label style={{
               position: 'relative',
               display: 'inline-block',
@@ -954,9 +954,9 @@ const FloatingChat: React.FC = () => {
               fontSize: '12px',
               cursor: 'pointer'
             }}
-            title="清空对话"
+            title="Clear conversation"
           >
-            清空
+            Clear
           </button>
           <button
             onClick={() => setIsExpanded(false)}
@@ -968,7 +968,7 @@ const FloatingChat: React.FC = () => {
               cursor: 'pointer',
               padding: '0 5px'
             }}
-            title="最小化"
+            title="Minimize"
           >
             <X size={18} />
           </button>
@@ -998,15 +998,15 @@ const FloatingChat: React.FC = () => {
             marginTop: '50px'
           }}>
             <div style={{ fontSize: '40px', marginBottom: '10px' }}><Hand size={40} /></div>
-            <div>我是GIST辅助智能助手</div>
+            <div>I'm the dbGIST Assistant</div>
             <div style={{ marginTop: '5px', fontSize: '12px' }}>
-              您可以边查看数据库边向我咨询问题
+              Browse the database and ask me anything about it
             </div>
             <div style={{ marginTop: '10px', fontSize: '12px', color: '#999' }}>
-              <Target size={12} style={{display: 'inline', marginRight: '4px'}} /> 点击"分析"尝试自动截图分析
+              <Target size={12} style={{display: 'inline', marginRight: '4px'}} /> Click "Analyze" to try auto-capture
             </div>
             <div style={{ marginTop: '5px', fontSize: '12px', color: '#999' }}>
-              <Lightbulb size={12} style={{display: 'inline', marginRight: '4px'}} /> 支持拖拽图片或Ctrl+V粘贴图片进行分析
+              <Lightbulb size={12} style={{display: 'inline', marginRight: '4px'}} /> Drag in an image or paste with Ctrl+V to analyze
             </div>
           </div>
         )}
@@ -1026,7 +1026,7 @@ const FloatingChat: React.FC = () => {
             zIndex: 10
           }}>
             <div style={{ fontSize: '30px', marginBottom: '10px' }}><BarChart3 size={30} /></div>
-            <div>释放图片开始分析</div>
+            <div>Release the image to start analysis</div>
           </div>
         )}
         
@@ -1075,7 +1075,7 @@ const FloatingChat: React.FC = () => {
                 <div style={{ marginBottom: '8px' }}>
                   <img
                     src={msg.image}
-                    alt="分析结果图表"
+                    alt="Analysis chart"
                     style={{
                       maxWidth: '100%',
                       maxHeight: '400px',
@@ -1084,7 +1084,7 @@ const FloatingChat: React.FC = () => {
                       cursor: 'pointer'
                     }}
                     onClick={() => window.open(msg.image, '_blank')}
-                    title="点击查看大图"
+                    title="Click to enlarge"
                   />
                 </div>
               )}
@@ -1136,7 +1136,7 @@ const FloatingChat: React.FC = () => {
               gap: '8px'
             }}>
               <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />
-              {currentActivity || (streamMode ? 'AI 正在处理...' : 'AI 正在思考...')}
+              {currentActivity || (streamMode ? 'Working...' : 'Thinking...')}
             </div>
           </div>
         )}
@@ -1170,7 +1170,7 @@ const FloatingChat: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-            placeholder="输入您的GIST相关问题或拖拽图片..."
+            placeholder="Ask about GIST or drag in an image..."
             style={{
               flex: 1,
               padding: '10px 12px',
@@ -1200,7 +1200,7 @@ const FloatingChat: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center'
             }}
-            title="上传图片进行分析"
+            title="Upload an image for analysis"
           >
             <Image size={16} />
           </button>
@@ -1219,7 +1219,7 @@ const FloatingChat: React.FC = () => {
               transition: 'all 0.3s ease'
             }}
           >
-            发送
+            Send
           </button>
         </div>
         
@@ -1230,7 +1230,7 @@ const FloatingChat: React.FC = () => {
           marginTop: '8px',
           textAlign: 'center'
         }}>
-          支持拖拽图片、点击📊按钮上传图片，或按Ctrl+V粘贴图片进行分析
+          Drag in an image, click 📊 to upload, or press Ctrl+V to paste — image analysis is supported.
         </div>
       </div>
     </div>
